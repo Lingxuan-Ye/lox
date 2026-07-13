@@ -15,6 +15,10 @@ impl<'a> Lexer<'a> {
         Self { source, cursor }
     }
 
+    pub fn source(&self) -> &'a str {
+        self.source
+    }
+
     fn next_byte(&mut self) -> Option<u8> {
         let byte = self.source.as_bytes().get(self.cursor).copied()?;
         self.cursor += 1;
