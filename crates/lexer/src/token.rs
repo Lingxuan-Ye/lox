@@ -1,20 +1,13 @@
-use std::borrow::Cow;
-use std::range::Range;
+use core::range::Range;
 
 #[derive(Debug, PartialEq)]
-pub struct Token<'a> {
-    pub kind: TokenKind<'a>,
+pub struct Token {
+    pub kind: TokenKind,
     pub range: Range<usize>,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(kind: TokenKind<'a>, range: Range<usize>) -> Self {
-        Self { kind, range }
-    }
-}
-
 #[derive(Debug, PartialEq)]
-pub enum TokenKind<'a> {
+pub enum TokenKind {
     LParen,
     RParen,
     LBrace,
@@ -38,8 +31,8 @@ pub enum TokenKind<'a> {
     Keyword(Keyword),
 
     Identifier,
-    String(Cow<'a, str>),
-    Number(f64),
+    String,
+    Number,
 }
 
 #[derive(Debug, PartialEq)]
