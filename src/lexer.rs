@@ -286,7 +286,7 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum LexerError {
     UnexpectedCharacter { range: Range<usize>, char: char },
     UnterminatedString,
