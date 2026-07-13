@@ -206,7 +206,7 @@ impl<'a> Iterator for Lexer<'a> {
                     if !unicode_ident::is_xid_start(char) {
                         let end = self.cursor;
                         let range = Range { start, end };
-                        let error = LexerError::UnexpectedCharacter { range, char };
+                        let error = LexerError::UnexpectedCharacter { char, range };
                         return Some(Err(error));
                     }
                     for char in chars {
@@ -275,10 +275,10 @@ impl<'a> Iterator for Lexer<'a> {
                     return Some(Ok(token));
                 }
                 0x00..=0x7F => {
+                    let char = byte as char;
                     let end = self.cursor;
                     let range = Range { start, end };
-                    let char = byte as char;
-                    let error = LexerError::UnexpectedCharacter { range, char };
+                    let error = LexerError::UnexpectedCharacter { char, range };
                     return Some(Err(error));
                 }
             }
@@ -288,14 +288,14 @@ impl<'a> Iterator for Lexer<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum LexerError {
-    UnexpectedCharacter { range: Range<usize>, char: char },
+    UnexpectedCharacter { char: char, range: Range<usize> },
     UnterminatedString,
 }
 
 impl fmt::Display for LexerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UnexpectedCharacter { range, char } => {
+            Self::UnexpectedCharacter { char, range } => {
                 let Range { start, end } = range;
                 write!(f, "unexpected character '{char}' at {start}..{end}")
             }
