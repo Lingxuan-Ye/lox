@@ -62,6 +62,13 @@ impl<'a> Iterator for Lexer<'a> {
                     let token = Token { kind, range };
                     return Some(Ok(token));
                 }
+                b';' => {
+                    let kind = TokenKind::Semicolon;
+                    let end = self.cursor;
+                    let range = Range { start, end };
+                    let token = Token { kind, range };
+                    return Some(Ok(token));
+                }
                 b',' => {
                     let kind = TokenKind::Comma;
                     let end = self.cursor;
@@ -76,13 +83,6 @@ impl<'a> Iterator for Lexer<'a> {
                     let token = Token { kind, range };
                     return Some(Ok(token));
                 }
-                b'-' => {
-                    let kind = TokenKind::Minus;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
                 b'+' => {
                     let kind = TokenKind::Plus;
                     let end = self.cursor;
@@ -90,8 +90,8 @@ impl<'a> Iterator for Lexer<'a> {
                     let token = Token { kind, range };
                     return Some(Ok(token));
                 }
-                b';' => {
-                    let kind = TokenKind::Semicolon;
+                b'-' => {
+                    let kind = TokenKind::Minus;
                     let end = self.cursor;
                     let range = Range { start, end };
                     let token = Token { kind, range };
@@ -103,6 +103,19 @@ impl<'a> Iterator for Lexer<'a> {
                     let range = Range { start, end };
                     let token = Token { kind, range };
                     return Some(Ok(token));
+                }
+                b'/' => {
+                    if self.peek_byte::<0>() == Some(b'/') {
+                        self.cursor += 1;
+                        while self.next_byte()? != b'\n' {}
+                        continue;
+                    } else {
+                        let kind = TokenKind::Slash;
+                        let end = self.cursor;
+                        let range = Range { start, end };
+                        let token = Token { kind, range };
+                        return Some(Ok(token));
+                    }
                 }
                 b'!' => {
                     if self.peek_byte::<0>() == Some(b'=') {
@@ -162,19 +175,6 @@ impl<'a> Iterator for Lexer<'a> {
                         return Some(Ok(token));
                     } else {
                         let kind = TokenKind::Greater;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
-                    }
-                }
-                b'/' => {
-                    if self.peek_byte::<0>() == Some(b'/') {
-                        self.cursor += 1;
-                        while self.next_byte()? != b'\n' {}
-                        continue;
-                    } else {
-                        let kind = TokenKind::Slash;
                         let end = self.cursor;
                         let range = Range { start, end };
                         let token = Token { kind, range };

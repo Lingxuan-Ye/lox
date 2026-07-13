@@ -1,32 +1,32 @@
 use core::range::Range;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
     pub range: Range<usize>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TokenKind {
     LParen,
     RParen,
     LBrace,
     RBrace,
+    Semicolon,
     Comma,
     Dot,
-    Minus,
     Plus,
-    Semicolon,
-    Slash,
+    Minus,
     Star,
+    Slash,
     Bang,
     BangEqual,
     Equal,
     EqualEqual,
-    Greater,
-    GreaterEqual,
     Less,
     LessEqual,
+    Greater,
+    GreaterEqual,
 
     Identifier,
     String,
@@ -35,7 +35,7 @@ pub enum TokenKind {
     Keyword(Keyword),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Keyword {
     Print,
     Class,
