@@ -28,11 +28,11 @@ pub enum TokenKind {
     Less,
     LessEqual,
 
-    Keyword(Keyword),
-
     Identifier,
     String,
     Number,
+
+    Keyword(Keyword),
 }
 
 #[derive(Debug, PartialEq)]

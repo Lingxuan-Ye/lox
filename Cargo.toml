@@ -1,3 +1,8 @@
-[workspace]
-resolver = "3"
-members = ["crates/lexer"]
+[package]
+name = "lox"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+unicode-ident = "1.0.24"
