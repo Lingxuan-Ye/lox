@@ -96,7 +96,7 @@ impl<'a> Parser<'a> {
                     let Some(Err(error)) = self.next_token() else {
                         unreachable!()
                     };
-                    let error = ParseError::from(error);
+                    let error = ParseError::LexError(error);
                     return Some(Err(error));
                 }
                 Some(Ok(token)) => token,
@@ -144,7 +144,7 @@ impl<'a> Parser<'a> {
                     let Some(Err(error)) = self.next_token() else {
                         unreachable!()
                     };
-                    let error = ParseError::from(error);
+                    let error = ParseError::LexError(error);
                     return Some(Err(error));
                 }
                 Some(Ok(token)) => token,
@@ -194,7 +194,7 @@ impl<'a> Parser<'a> {
                     let Some(Err(error)) = self.next_token() else {
                         unreachable!()
                     };
-                    let error = ParseError::from(error);
+                    let error = ParseError::LexError(error);
                     return Some(Err(error));
                 }
                 Some(Ok(token)) => token,
@@ -242,7 +242,7 @@ impl<'a> Parser<'a> {
                     let Some(Err(error)) = self.next_token() else {
                         unreachable!()
                     };
-                    let error = ParseError::from(error);
+                    let error = ParseError::LexError(error);
                     return Some(Err(error));
                 }
                 Some(Ok(token)) => token,
@@ -282,7 +282,7 @@ impl<'a> Parser<'a> {
             let Some(Err(error)) = self.next_token() else {
                 unreachable!()
             };
-            let error = ParseError::from(error);
+            let error = ParseError::LexError(error);
             return Some(Err(error));
         };
 
@@ -316,7 +316,7 @@ impl<'a> Parser<'a> {
     fn primary(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
         let token = match self.next_token()? {
             Err(error) => {
-                let error = ParseError::from(error);
+                let error = ParseError::LexError(error);
                 return Some(Err(error));
             }
             Ok(token) => token,
@@ -341,7 +341,7 @@ impl<'a> Parser<'a> {
                         return Some(Err(error));
                     }
                     Some(Err(error)) => {
-                        let error = ParseError::from(error);
+                        let error = ParseError::LexError(error);
                         return Some(Err(error));
                     }
                     Some(Ok(token)) => token,
@@ -627,12 +627,6 @@ pub enum ParseError<'a> {
         sequence: &'a str,
         range: Range<usize>,
     },
-}
-
-impl From<LexError> for ParseError<'_> {
-    fn from(value: LexError) -> Self {
-        Self::LexError(value)
-    }
 }
 
 impl fmt::Display for ParseError<'_> {
