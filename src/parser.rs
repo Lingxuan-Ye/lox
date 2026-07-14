@@ -9,11 +9,11 @@ use core::fmt;
 use core::range::Range;
 
 // expression     → equality ;
-// equality       → comparison ( ( "!=" | "==" ) comparison )* ;
+// equality       → comparison ( ( "==" | "!=" ) comparison )* ;
 // comparison     → term ( ( "<" | "<=" | ">" | ">=" ) term )* ;
 // term           → factor ( ( "+" | "-" ) factor )* ;
 // factor         → unary ( ( "*" | "/" ) unary )* ;
-// unary          → ( "!" | "-" ) unary
+// unary          → ( "-" | "!" ) unary
 //                | primary ;
 // primary        → "(" expression ")" | STRING | NUMBER | "true" | "false"
 //                | "nil" ;
@@ -103,8 +103,8 @@ impl<'a> Parser<'a> {
             };
 
             let operator = match token.kind {
-                TokenKind::BangEqual => BinaryOperator::NotEqual,
                 TokenKind::EqualEqual => BinaryOperator::Equal,
+                TokenKind::BangEqual => BinaryOperator::NotEqual,
                 _ => break,
             };
 

@@ -29,12 +29,12 @@ pub enum BinaryOperator {
     Sub,
     Mul,
     Div,
-    NotEqual,
-    Equal,
     Less,
     LessEqual,
     Greater,
     GreaterEqual,
+    Equal,
+    NotEqual,
 }
 
 #[derive(Debug, PartialEq)]
