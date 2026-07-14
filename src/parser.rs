@@ -1,5 +1,5 @@
 use crate::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
-use crate::lexer::{Lexer, LexerError};
+use crate::lexer::{LexError, Lexer};
 use crate::token::{Keyword, Token, TokenKind};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -21,7 +21,7 @@ use core::range::Range;
 #[derive(Debug)]
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
-    peeked: Option<Option<Result<Token, LexerError>>>,
+    peeked: Option<Option<Result<Token, LexError>>>,
 }
 
 impl<'a> Parser<'a> {
@@ -64,14 +64,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn next_token(&mut self) -> Option<Result<Token, LexerError>> {
+    fn next_token(&mut self) -> Option<Result<Token, LexError>> {
         match self.peeked.take() {
             None => self.lexer.next(),
             Some(peeked) => peeked,
         }
     }
 
-    fn peek_token(&mut self) -> Option<&Result<Token, LexerError>> {
+    fn peek_token(&mut self) -> Option<&Result<Token, LexError>> {
         self.peeked
             .get_or_insert_with(|| self.lexer.next())
             .as_ref()
@@ -620,7 +620,7 @@ impl<'a> Parser<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError<'a> {
-    LexerError(LexerError),
+    LexError(LexError),
     UnexpectedEndOfInput,
     UnexpectedToken(Token),
     InvalidEscapeSequence {
@@ -629,16 +629,16 @@ pub enum ParseError<'a> {
     },
 }
 
-impl From<LexerError> for ParseError<'_> {
-    fn from(value: LexerError) -> Self {
-        Self::LexerError(value)
+impl From<LexError> for ParseError<'_> {
+    fn from(value: LexError) -> Self {
+        Self::LexError(value)
     }
 }
 
 impl fmt::Display for ParseError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::LexerError(error) => write!(f, "{error}"),
+            Self::LexError(error) => write!(f, "{error}"),
             Self::UnexpectedEndOfInput => write!(f, "unexpected end of input"),
             Self::UnexpectedToken(token) => write!(f, "unexpected token {token}"),
             Self::InvalidEscapeSequence { sequence, range } => {

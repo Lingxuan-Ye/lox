@@ -31,7 +31,7 @@ impl<'a> Lexer<'a> {
 }
 
 impl Iterator for Lexer<'_> {
-    type Item = Result<Token, LexerError>;
+    type Item = Result<Token, LexError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -210,7 +210,7 @@ impl Iterator for Lexer<'_> {
                     if !unicode_ident::is_xid_start(char) {
                         let end = self.cursor;
                         let range = Range { start, end };
-                        let error = LexerError::UnexpectedCharacter { char, range };
+                        let error = LexError::UnexpectedCharacter { char, range };
                         return Some(Err(error));
                     }
                     for char in chars {
@@ -232,7 +232,7 @@ impl Iterator for Lexer<'_> {
                 b'"' => loop {
                     match self.next_byte() {
                         None => {
-                            let error = LexerError::UnterminatedString;
+                            let error = LexError::UnterminatedString;
                             return Some(Err(error));
                         }
                         Some(b'"') => {
@@ -244,7 +244,7 @@ impl Iterator for Lexer<'_> {
                         }
                         Some(b'\\') => {
                             if self.next_byte().is_none() {
-                                let error = LexerError::UnterminatedString;
+                                let error = LexError::UnterminatedString;
                                 return Some(Err(error));
                             }
                         }
@@ -281,7 +281,7 @@ impl Iterator for Lexer<'_> {
                     let char = byte as char;
                     let end = self.cursor;
                     let range = Range { start, end };
-                    let error = LexerError::UnexpectedCharacter { char, range };
+                    let error = LexError::UnexpectedCharacter { char, range };
                     return Some(Err(error));
                 }
             }
@@ -290,12 +290,12 @@ impl Iterator for Lexer<'_> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum LexerError {
+pub enum LexError {
     UnexpectedCharacter { char: char, range: Range<usize> },
     UnterminatedString,
 }
 
-impl fmt::Display for LexerError {
+impl fmt::Display for LexError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnexpectedCharacter { char, range } => {
@@ -309,7 +309,7 @@ impl fmt::Display for LexerError {
     }
 }
 
-impl Error for LexerError {}
+impl Error for LexError {}
 
 #[cfg(test)]
 mod tests {
