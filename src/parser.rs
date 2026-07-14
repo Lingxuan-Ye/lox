@@ -1,4 +1,4 @@
-use crate::expression::{BinaryOperator, Expression, Literal, UnaryOperator};
+use crate::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
 use crate::lexer::{Lexer, LexerError};
 use crate::token::{Keyword, Token, TokenKind};
 use alloc::borrow::Cow;
@@ -117,9 +117,13 @@ impl<'a> Parser<'a> {
                 }
                 Some(Err(error)) => return Some(Err(error)),
                 Some(Ok(rhs)) => {
+                    let start = expression.range.start;
+                    let end = rhs.range.end;
+                    let range = Range { start, end };
                     let lhs = Box::new(expression);
                     let rhs = Box::new(rhs);
-                    expression = Expression::Binary { operator, lhs, rhs };
+                    let kind = ExpressionKind::Binary { operator, lhs, rhs };
+                    expression = Expression { kind, range };
                 }
             }
         }
@@ -163,9 +167,13 @@ impl<'a> Parser<'a> {
                 }
                 Some(Err(error)) => return Some(Err(error)),
                 Some(Ok(rhs)) => {
+                    let start = expression.range.start;
+                    let end = rhs.range.end;
+                    let range = Range { start, end };
                     let lhs = Box::new(expression);
                     let rhs = Box::new(rhs);
-                    expression = Expression::Binary { operator, lhs, rhs };
+                    let kind = ExpressionKind::Binary { operator, lhs, rhs };
+                    expression = Expression { kind, range };
                 }
             }
         }
@@ -207,9 +215,13 @@ impl<'a> Parser<'a> {
                 }
                 Some(Err(error)) => return Some(Err(error)),
                 Some(Ok(rhs)) => {
+                    let start = expression.range.start;
+                    let end = rhs.range.end;
+                    let range = Range { start, end };
                     let lhs = Box::new(expression);
                     let rhs = Box::new(rhs);
-                    expression = Expression::Binary { operator, lhs, rhs };
+                    let kind = ExpressionKind::Binary { operator, lhs, rhs };
+                    expression = Expression { kind, range };
                 }
             }
         }
@@ -251,9 +263,13 @@ impl<'a> Parser<'a> {
                 }
                 Some(Err(error)) => return Some(Err(error)),
                 Some(Ok(rhs)) => {
+                    let start = expression.range.start;
+                    let end = rhs.range.end;
+                    let range = Range { start, end };
                     let lhs = Box::new(expression);
                     let rhs = Box::new(rhs);
-                    expression = Expression::Binary { operator, lhs, rhs };
+                    let kind = ExpressionKind::Binary { operator, lhs, rhs };
+                    expression = Expression { kind, range };
                 }
             }
         }
@@ -276,6 +292,8 @@ impl<'a> Parser<'a> {
             _ => return self.primary(),
         };
 
+        let start = token.range.start;
+
         self.next_token();
 
         match self.unary() {
@@ -285,8 +303,11 @@ impl<'a> Parser<'a> {
             }
             Some(Err(error)) => Some(Err(error)),
             Some(Ok(rhs)) => {
+                let end = rhs.range.end;
+                let range = Range { start, end };
                 let rhs = Box::new(rhs);
-                let expression = Expression::Unary { operator, rhs };
+                let kind = ExpressionKind::Unary { operator, rhs };
+                let expression = Expression { kind, range };
                 Some(Ok(expression))
             }
         }
@@ -303,6 +324,8 @@ impl<'a> Parser<'a> {
 
         match token.kind {
             TokenKind::LParen => {
+                let start = token.range.start;
+
                 let expression = match self.expression() {
                     None => {
                         let error = ParseError::UnexpectedEndOfInput;
@@ -327,7 +350,10 @@ impl<'a> Parser<'a> {
                 match token.kind {
                     TokenKind::RParen => {
                         let expression = Box::new(expression);
-                        let expression = Expression::Grouping(expression);
+                        let kind = ExpressionKind::Grouping(expression);
+                        let end = token.range.end;
+                        let range = Range { start, end };
+                        let expression = Expression { kind, range };
                         Some(Ok(expression))
                     }
                     _ => {
@@ -543,7 +569,9 @@ impl<'a> Parser<'a> {
                 }
 
                 let literal = Literal::String(string);
-                let expression = Expression::Literal(literal);
+                let kind = ExpressionKind::Literal(literal);
+                let range = token.range;
+                let expression = Expression { kind, range };
                 Some(Ok(expression))
             }
 
@@ -552,25 +580,33 @@ impl<'a> Parser<'a> {
                     .parse()
                     .unwrap_or_else(|_| unreachable!());
                 let literal = Literal::Number(number);
-                let expression = Expression::Literal(literal);
+                let kind = ExpressionKind::Literal(literal);
+                let range = token.range;
+                let expression = Expression { kind, range };
                 Some(Ok(expression))
             }
 
             TokenKind::Keyword(Keyword::True) => {
                 let literal = Literal::Boolean(true);
-                let expression = Expression::Literal(literal);
+                let kind = ExpressionKind::Literal(literal);
+                let range = token.range;
+                let expression = Expression { kind, range };
                 Some(Ok(expression))
             }
 
             TokenKind::Keyword(Keyword::False) => {
                 let literal = Literal::Boolean(false);
-                let expression = Expression::Literal(literal);
+                let kind = ExpressionKind::Literal(literal);
+                let range = token.range;
+                let expression = Expression { kind, range };
                 Some(Ok(expression))
             }
 
             TokenKind::Keyword(Keyword::Nil) => {
                 let literal = Literal::Nil;
-                let expression = Expression::Literal(literal);
+                let kind = ExpressionKind::Literal(literal);
+                let range = token.range;
+                let expression = Expression { kind, range };
                 Some(Ok(expression))
             }
 

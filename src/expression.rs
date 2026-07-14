@@ -1,18 +1,25 @@
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
+use core::range::Range;
 
 #[derive(Debug, PartialEq)]
-pub enum Expression<'a> {
+pub struct Expression<'a> {
+    pub kind: ExpressionKind<'a>,
+    pub range: Range<usize>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ExpressionKind<'a> {
     Binary {
         operator: BinaryOperator,
-        lhs: Box<Self>,
-        rhs: Box<Self>,
+        lhs: Box<Expression<'a>>,
+        rhs: Box<Expression<'a>>,
     },
     Unary {
         operator: UnaryOperator,
-        rhs: Box<Self>,
+        rhs: Box<Expression<'a>>,
     },
-    Grouping(Box<Self>),
+    Grouping(Box<Expression<'a>>),
     Literal(Literal<'a>),
 }
 
