@@ -252,8 +252,7 @@ impl Iterator for Lexer<'_> {
                     }
                 },
                 _ if byte.is_ascii_digit() => {
-                    let mut bytes = self.source.as_bytes()[self.cursor..].iter();
-                    for byte in &mut bytes {
+                    for byte in &self.source.as_bytes()[self.cursor..] {
                         if !byte.is_ascii_digit() {
                             break;
                         }
@@ -265,7 +264,7 @@ impl Iterator for Lexer<'_> {
                             .is_some_and(|byte| byte.is_ascii_digit())
                     {
                         self.cursor += 2;
-                        for byte in bytes {
+                        for byte in &self.source.as_bytes()[self.cursor..] {
                             if !byte.is_ascii_digit() {
                                 break;
                             }
