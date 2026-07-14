@@ -1,6 +1,4 @@
 use crate::token::{Keyword, Token, TokenKind};
-use core::error::Error;
-use core::fmt;
 use core::range::Range;
 
 #[derive(Debug)]
@@ -294,22 +292,6 @@ pub enum LexError {
     UnexpectedCharacter { char: char, range: Range<usize> },
     UnterminatedString,
 }
-
-impl fmt::Display for LexError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnexpectedCharacter { char, range } => {
-                let Range { start, end } = range;
-                write!(f, "unexpected character '{char}' at {start}..{end}")
-            }
-            Self::UnterminatedString => {
-                write!(f, "unterminated string")
-            }
-        }
-    }
-}
-
-impl Error for LexError {}
 
 #[cfg(test)]
 mod tests {

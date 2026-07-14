@@ -4,8 +4,6 @@ use crate::token::{Keyword, Token, TokenKind};
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::format;
-use core::error::Error;
-use core::fmt;
 use core::range::Range;
 
 // expression     → equality ;
@@ -628,19 +626,3 @@ pub enum ParseError<'a> {
         range: Range<usize>,
     },
 }
-
-impl fmt::Display for ParseError<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::LexError(error) => write!(f, "{error}"),
-            Self::UnexpectedEndOfInput => write!(f, "unexpected end of input"),
-            Self::UnexpectedToken(token) => write!(f, "unexpected token {token}"),
-            Self::InvalidEscapeSequence { sequence, range } => {
-                let Range { start, end } = range;
-                write!(f, "invalid escape sequence '{sequence}' at {start}..{end}")
-            }
-        }
-    }
-}
-
-impl Error for ParseError<'_> {}
