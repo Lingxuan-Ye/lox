@@ -1,8 +1,7 @@
-use crate::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
+use crate::expression::{BinaryOperator, Expression, Literal, UnaryOperator};
 use crate::lexer::{LexError, Lexer};
 use crate::token::{Keyword, Token, TokenKind};
 use alloc::borrow::Cow;
-use alloc::boxed::Box;
 use alloc::format;
 use core::range::Range;
 
@@ -82,7 +81,7 @@ impl<'a> Parser<'a> {
     }
 
     fn equality(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
-        let mut expression = match self.comparison()? {
+        let mut lhs = match self.comparison()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
         };
@@ -115,22 +114,19 @@ impl<'a> Parser<'a> {
                 }
                 Some(Err(error)) => return Some(Err(error)),
                 Some(Ok(rhs)) => {
-                    let start = expression.range.start;
+                    let start = lhs.range.start;
                     let end = rhs.range.end;
                     let range = Range { start, end };
-                    let lhs = Box::new(expression);
-                    let rhs = Box::new(rhs);
-                    let kind = ExpressionKind::Binary { operator, lhs, rhs };
-                    expression = Expression { kind, range };
+                    lhs = Expression::binary(operator, lhs, rhs, range);
                 }
             }
         }
 
-        Some(Ok(expression))
+        Some(Ok(lhs))
     }
 
     fn comparison(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
-        let mut expression = match self.term()? {
+        let mut lhs = match self.term()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
         };
@@ -165,22 +161,19 @@ impl<'a> Parser<'a> {
                 }
                 Some(Err(error)) => return Some(Err(error)),
                 Some(Ok(rhs)) => {
-                    let start = expression.range.start;
+                    let start = lhs.range.start;
                     let end = rhs.range.end;
                     let range = Range { start, end };
-                    let lhs = Box::new(expression);
-                    let rhs = Box::new(rhs);
-                    let kind = ExpressionKind::Binary { operator, lhs, rhs };
-                    expression = Expression { kind, range };
+                    lhs = Expression::binary(operator, lhs, rhs, range);
                 }
             }
         }
 
-        Some(Ok(expression))
+        Some(Ok(lhs))
     }
 
     fn term(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
-        let mut expression = match self.factor()? {
+        let mut lhs = match self.factor()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
         };
@@ -213,22 +206,19 @@ impl<'a> Parser<'a> {
                 }
                 Some(Err(error)) => return Some(Err(error)),
                 Some(Ok(rhs)) => {
-                    let start = expression.range.start;
+                    let start = lhs.range.start;
                     let end = rhs.range.end;
                     let range = Range { start, end };
-                    let lhs = Box::new(expression);
-                    let rhs = Box::new(rhs);
-                    let kind = ExpressionKind::Binary { operator, lhs, rhs };
-                    expression = Expression { kind, range };
+                    lhs = Expression::binary(operator, lhs, rhs, range);
                 }
             }
         }
 
-        Some(Ok(expression))
+        Some(Ok(lhs))
     }
 
     fn factor(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
-        let mut expression = match self.unary()? {
+        let mut lhs = match self.unary()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
         };
@@ -261,18 +251,15 @@ impl<'a> Parser<'a> {
                 }
                 Some(Err(error)) => return Some(Err(error)),
                 Some(Ok(rhs)) => {
-                    let start = expression.range.start;
+                    let start = lhs.range.start;
                     let end = rhs.range.end;
                     let range = Range { start, end };
-                    let lhs = Box::new(expression);
-                    let rhs = Box::new(rhs);
-                    let kind = ExpressionKind::Binary { operator, lhs, rhs };
-                    expression = Expression { kind, range };
+                    lhs = Expression::binary(operator, lhs, rhs, range);
                 }
             }
         }
 
-        Some(Ok(expression))
+        Some(Ok(lhs))
     }
 
     fn unary(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
@@ -290,7 +277,7 @@ impl<'a> Parser<'a> {
             _ => return self.primary(),
         };
 
-        let start = token.range.start;
+        let operator_range = token.range;
 
         self.next_token();
 
@@ -301,11 +288,10 @@ impl<'a> Parser<'a> {
             }
             Some(Err(error)) => Some(Err(error)),
             Some(Ok(rhs)) => {
+                let start = operator_range.start;
                 let end = rhs.range.end;
                 let range = Range { start, end };
-                let rhs = Box::new(rhs);
-                let kind = ExpressionKind::Unary { operator, rhs };
-                let expression = Expression { kind, range };
+                let expression = Expression::unary(operator, rhs, range);
                 Some(Ok(expression))
             }
         }
@@ -347,11 +333,9 @@ impl<'a> Parser<'a> {
 
                 match token.kind {
                     TokenKind::RParen => {
-                        let expression = Box::new(expression);
-                        let kind = ExpressionKind::Grouping(expression);
                         let end = token.range.end;
                         let range = Range { start, end };
-                        let expression = Expression { kind, range };
+                        let expression = Expression::grouping(expression, range);
                         Some(Ok(expression))
                     }
                     _ => {
@@ -567,9 +551,8 @@ impl<'a> Parser<'a> {
                 }
 
                 let literal = Literal::String(string);
-                let kind = ExpressionKind::Literal(literal);
                 let range = token.range;
-                let expression = Expression { kind, range };
+                let expression = Expression::literal(literal, range);
                 Some(Ok(expression))
             }
 
@@ -578,33 +561,29 @@ impl<'a> Parser<'a> {
                     .parse()
                     .unwrap_or_else(|_| unreachable!());
                 let literal = Literal::Number(number);
-                let kind = ExpressionKind::Literal(literal);
                 let range = token.range;
-                let expression = Expression { kind, range };
+                let expression = Expression::literal(literal, range);
                 Some(Ok(expression))
             }
 
             TokenKind::Keyword(Keyword::True) => {
                 let literal = Literal::Boolean(true);
-                let kind = ExpressionKind::Literal(literal);
                 let range = token.range;
-                let expression = Expression { kind, range };
+                let expression = Expression::literal(literal, range);
                 Some(Ok(expression))
             }
 
             TokenKind::Keyword(Keyword::False) => {
                 let literal = Literal::Boolean(false);
-                let kind = ExpressionKind::Literal(literal);
                 let range = token.range;
-                let expression = Expression { kind, range };
+                let expression = Expression::literal(literal, range);
                 Some(Ok(expression))
             }
 
             TokenKind::Keyword(Keyword::Nil) => {
                 let literal = Literal::Nil;
-                let kind = ExpressionKind::Literal(literal);
                 let range = token.range;
-                let expression = Expression { kind, range };
+                let expression = Expression::literal(literal, range);
                 Some(Ok(expression))
             }
 
