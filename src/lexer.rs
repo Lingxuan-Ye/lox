@@ -35,152 +35,56 @@ impl Iterator for Lexer<'_> {
         loop {
             let start = self.cursor;
             let byte = self.next_byte()?;
-            match byte {
-                b'(' => {
-                    let kind = TokenKind::LParen;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b')' => {
-                    let kind = TokenKind::RParen;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b'{' => {
-                    let kind = TokenKind::LBrace;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b'}' => {
-                    let kind = TokenKind::RBrace;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b';' => {
-                    let kind = TokenKind::Semicolon;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b',' => {
-                    let kind = TokenKind::Comma;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b'.' => {
-                    let kind = TokenKind::Dot;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b'+' => {
-                    let kind = TokenKind::Plus;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b'-' => {
-                    let kind = TokenKind::Minus;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
-                b'*' => {
-                    let kind = TokenKind::Star;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
-                }
+            let kind = match byte {
+                b'(' => TokenKind::LParen,
+                b')' => TokenKind::RParen,
+                b'{' => TokenKind::LBrace,
+                b'}' => TokenKind::RBrace,
+                b';' => TokenKind::Semicolon,
+                b',' => TokenKind::Comma,
+                b'.' => TokenKind::Dot,
+                b'+' => TokenKind::Plus,
+                b'-' => TokenKind::Minus,
+                b'*' => TokenKind::Star,
                 b'/' => {
                     if self.peek_byte::<0>() == Some(b'/') {
                         self.cursor += 1;
                         while self.next_byte()? != b'\n' {}
                         continue;
                     } else {
-                        let kind = TokenKind::Slash;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::Slash
                     }
                 }
                 b'!' => {
                     if self.peek_byte::<0>() == Some(b'=') {
                         self.cursor += 1;
-                        let kind = TokenKind::BangEqual;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::BangEqual
                     } else {
-                        let kind = TokenKind::Bang;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::Bang
                     }
                 }
                 b'=' => {
                     if self.peek_byte::<0>() == Some(b'=') {
                         self.cursor += 1;
-                        let kind = TokenKind::EqualEqual;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::EqualEqual
                     } else {
-                        let kind = TokenKind::Equal;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::Equal
                     }
                 }
                 b'<' => {
                     if self.peek_byte::<0>() == Some(b'=') {
                         self.cursor += 1;
-                        let kind = TokenKind::LessEqual;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::LessEqual
                     } else {
-                        let kind = TokenKind::Less;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::Less
                     }
                 }
                 b'>' => {
                     if self.peek_byte::<0>() == Some(b'=') {
                         self.cursor += 1;
-                        let kind = TokenKind::GreaterEqual;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::GreaterEqual
                     } else {
-                        let kind = TokenKind::Greater;
-                        let end = self.cursor;
-                        let range = Range { start, end };
-                        let token = Token { kind, range };
-                        return Some(Ok(token));
+                        TokenKind::Greater
                     }
                 }
                 _ if byte.is_ascii_whitespace() => continue,
@@ -191,15 +95,11 @@ impl Iterator for Lexer<'_> {
                         }
                         self.cursor += char.len_utf8();
                     }
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let lexeme = &self.source[range];
-                    let kind = match Keyword::from_lexeme(lexeme) {
+                    let lexeme = &self.source[start..self.cursor];
+                    match Keyword::from_lexeme(lexeme) {
                         Some(keyword) => TokenKind::Keyword(keyword),
                         None => TokenKind::Identifier,
-                    };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
+                    }
                 }
                 0x80..=0xFF => {
                     let mut chars = self.source[start..].chars();
@@ -217,15 +117,12 @@ impl Iterator for Lexer<'_> {
                         }
                         self.cursor += char.len_utf8();
                     }
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let lexeme = &self.source[range];
-                    let kind = match Keyword::from_lexeme(lexeme) {
+
+                    let lexeme = &self.source[start..self.cursor];
+                    match Keyword::from_lexeme(lexeme) {
                         Some(keyword) => TokenKind::Keyword(keyword),
                         None => TokenKind::Identifier,
-                    };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
+                    }
                 }
                 b'"' => loop {
                     match self.next_byte() {
@@ -233,18 +130,14 @@ impl Iterator for Lexer<'_> {
                             let error = LexError::UnterminatedString;
                             return Some(Err(error));
                         }
-                        Some(b'"') => {
-                            let end = self.cursor;
-                            let range = Range { start, end };
-                            let kind = TokenKind::String;
-                            let token = Token { kind, range };
-                            return Some(Ok(token));
-                        }
                         Some(b'\\') => {
                             if self.next_byte().is_none() {
                                 let error = LexError::UnterminatedString;
                                 return Some(Err(error));
                             }
+                        }
+                        Some(b'"') => {
+                            break TokenKind::String;
                         }
                         Some(_) => (),
                     }
@@ -269,11 +162,7 @@ impl Iterator for Lexer<'_> {
                             self.cursor += 1;
                         }
                     }
-                    let kind = TokenKind::Number;
-                    let end = self.cursor;
-                    let range = Range { start, end };
-                    let token = Token { kind, range };
-                    return Some(Ok(token));
+                    TokenKind::Number
                 }
                 0x00..=0x7F => {
                     let char = byte as char;
@@ -282,7 +171,11 @@ impl Iterator for Lexer<'_> {
                     let error = LexError::UnexpectedCharacter { char, range };
                     return Some(Err(error));
                 }
-            }
+            };
+            let end = self.cursor;
+            let range = Range { start, end };
+            let token = Token { kind, range };
+            return Some(Ok(token));
         }
     }
 }
@@ -296,6 +189,7 @@ pub enum LexError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::boxed::Box;
 
     #[test]
     fn test_lexer() {
@@ -314,6 +208,7 @@ mod tests {
             }
         "#;
         let lexer = Lexer::new(source);
+        let actual: Box<[TokenKind]> = lexer.map(Result::unwrap).map(|token| token.kind).collect();
         let expected = [
             TokenKind::Keyword(Keyword::Fun),
             TokenKind::Identifier,
@@ -348,8 +243,6 @@ mod tests {
             TokenKind::Semicolon,
             TokenKind::RBrace,
         ];
-        for (token, expected) in lexer.map(Result::unwrap).zip(expected) {
-            assert_eq!(token.kind, expected);
-        }
+        assert_eq!(&actual[..], &expected[..]);
     }
 }
