@@ -35,7 +35,7 @@ impl<'a> Parser<'a> {
         self.expression()
     }
 
-    pub fn syncronize(&mut self) {
+    pub fn synchronize(&mut self) {
         while let Some(token) = self.peek_token() {
             if let Ok(token) = token {
                 match token.kind {
