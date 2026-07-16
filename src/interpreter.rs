@@ -16,8 +16,8 @@ impl Interpreter {
         match expression.kind {
             ExpressionKind::Binary(binary) => Self::evaluate_binary(binary, range),
             ExpressionKind::Unary(unary) => Self::evaluate_unary(unary, range),
-            ExpressionKind::Grouping(grouping) => Self::evaluate_grouping(grouping, range),
-            ExpressionKind::Literal(literal) => Self::evaluate_literal(literal, range),
+            ExpressionKind::Grouping(grouping) => Self::evaluate_grouping(grouping),
+            ExpressionKind::Literal(literal) => Self::evaluate_literal(literal),
         }
     }
 
@@ -194,18 +194,12 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_grouping(
-        grouping: Grouping<'_>,
-        _range: Range<usize>,
-    ) -> Result<Value<'_>, InterpretError<'_>> {
+    fn evaluate_grouping(grouping: Grouping<'_>) -> Result<Value<'_>, InterpretError<'_>> {
         let Grouping(expression) = grouping;
         Self::evaluate(*expression)
     }
 
-    fn evaluate_literal(
-        literal: Literal<'_>,
-        _range: Range<usize>,
-    ) -> Result<Value<'_>, InterpretError<'_>> {
+    fn evaluate_literal(literal: Literal<'_>) -> Result<Value<'_>, InterpretError<'_>> {
         let value = match literal {
             Literal::String(string) => Value::String(string),
             Literal::Number(number) => Value::Number(number),
