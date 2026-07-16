@@ -22,7 +22,8 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(lexer: Lexer<'a>) -> Self {
+    pub fn new(source: &'a str) -> Self {
+        let lexer = Lexer::new(source);
         let peeked = None;
         Self { lexer, peeked }
     }
