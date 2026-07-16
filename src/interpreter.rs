@@ -206,7 +206,12 @@ impl Interpreter {
         literal: Literal<'_>,
         _range: Range<usize>,
     ) -> Result<Value<'_>, InterpretError<'_>> {
-        let value = Value::from(literal);
+        let value = match literal {
+            Literal::String(string) => Value::String(string),
+            Literal::Number(number) => Value::Number(number),
+            Literal::Boolean(boolean) => Value::Boolean(boolean),
+            Literal::Nil => Value::Nil,
+        };
         Ok(value)
     }
 }
@@ -217,17 +222,6 @@ pub enum Value<'a> {
     Number(f64),
     Boolean(bool),
     Nil,
-}
-
-impl<'a> From<Literal<'a>> for Value<'a> {
-    fn from(value: Literal<'a>) -> Self {
-        match value {
-            Literal::String(string) => Self::String(string),
-            Literal::Number(number) => Self::Number(number),
-            Literal::Boolean(boolean) => Self::Boolean(boolean),
-            Literal::Nil => Self::Nil,
-        }
-    }
 }
 
 impl From<Value<'_>> for bool {
