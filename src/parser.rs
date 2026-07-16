@@ -37,8 +37,11 @@ impl<'a> Parser<'a> {
 
     pub fn synchronize(&mut self) {
         while let Some(token) = self.peek_token() {
-            if let Ok(token) = token {
-                match token.kind {
+            match token {
+                Err(_) => {
+                    self.next_token();
+                }
+                Ok(token) => match token.kind {
                     TokenKind::Semicolon => {
                         self.next_token();
                         break;
@@ -56,7 +59,7 @@ impl<'a> Parser<'a> {
                     _ => {
                         self.next_token();
                     }
-                }
+                },
             }
         }
     }
