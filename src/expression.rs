@@ -1,7 +1,6 @@
-use alloc::borrow::Cow;
-use alloc::boxed::Box;
-use core::fmt;
-use core::range::Range;
+use std::borrow::Cow;
+use std::fmt;
+use std::range::Range;
 
 #[derive(Debug, PartialEq)]
 pub struct Expression<'a> {

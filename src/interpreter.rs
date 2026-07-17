@@ -3,10 +3,9 @@ use crate::expression::{
 };
 use crate::parser::{ParseError, Parser};
 use crate::statement::{Statement, StatementKind};
-use alloc::borrow::Cow;
-use alloc::vec::Vec;
-use core::fmt;
-use core::range::Range;
+use std::borrow::Cow;
+use std::fmt;
+use std::range::Range;
 
 pub struct Interpreter<W> {
     output: W,

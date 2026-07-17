@@ -2,9 +2,8 @@ use crate::expression::{BinaryOperator, Expression, Literal, UnaryOperator};
 use crate::lexer::{LexError, Lexer};
 use crate::statement::Statement;
 use crate::token::{Keyword, Token, TokenKind};
-use alloc::borrow::Cow;
-use alloc::format;
-use core::range::Range;
+use std::borrow::Cow;
+use std::range::Range;
 
 #[derive(Debug)]
 pub struct Parser<'a> {

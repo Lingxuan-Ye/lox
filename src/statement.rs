@@ -1,5 +1,5 @@
 use crate::expression::Expression;
-use core::range::Range;
+use std::range::Range;
 
 #[derive(Debug, PartialEq)]
 pub struct Statement<'a> {

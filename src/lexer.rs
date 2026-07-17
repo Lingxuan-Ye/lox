@@ -1,5 +1,5 @@
 use crate::token::{Keyword, Token, TokenKind};
-use core::range::Range;
+use std::range::Range;
 
 #[derive(Debug)]
 pub struct Lexer<'a> {
@@ -189,7 +189,6 @@ pub enum LexError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::boxed::Box;
 
     #[test]
     fn test_lexer() {

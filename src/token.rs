@@ -1,4 +1,4 @@
-use core::range::Range;
+use std::range::Range;
 
 #[derive(Debug, PartialEq)]
 pub struct Token {
