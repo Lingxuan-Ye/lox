@@ -23,7 +23,13 @@ impl fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::String(string) => write!(f, "{string}"),
-            Value::Number(number) => write!(f, "{number}"),
+            Value::Number(number) => {
+                if number.fract() == 0.0 {
+                    write!(f, "{number:.0}")
+                } else {
+                    write!(f, "{number}")
+                }
+            }
             Value::Boolean(boolean) => write!(f, "{boolean}"),
             Value::Nil => f.write_str("nil"),
         }
