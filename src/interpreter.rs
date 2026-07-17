@@ -4,8 +4,11 @@ use crate::expression::{
 use crate::parser::{ParseError, Parser};
 use crate::statement::{Statement, StatementKind};
 use crate::value::Value;
+use std::borrow::Cow;
+use std::cell::RefCell;
 use std::fmt;
 use std::range::Range;
+use std::rc::Rc;
 
 pub struct Interpreter<W> {
     output: W,
@@ -107,9 +110,47 @@ impl<W> Interpreter<W> {
                     let value = Value::Number(lhs + rhs);
                     Ok(value)
                 }
-                (Value::String(mut lhs), Value::String(rhs)) => {
-                    lhs += rhs;
-                    let value = Value::String(lhs);
+                (Value::String(lhs), Value::String(rhs)) => {
+                    if Rc::ptr_eq(&lhs, &rhs) {
+                        let borrow = lhs.borrow();
+                        if borrow.is_empty() {
+                            drop(borrow);
+                            let value = Value::String(lhs);
+                            return Ok(value);
+                        }
+                        let string = borrow.repeat(2);
+                        let string = Rc::new(RefCell::new(Cow::Owned(string)));
+                        let value = Value::String(string);
+                        return Ok(value);
+                    }
+                    let lhs_count = Rc::strong_count(&lhs);
+                    let mut lhs_borrow = lhs.borrow_mut();
+                    let rhs_borrow = rhs.borrow();
+                    if lhs_borrow.is_empty() {
+                        drop(rhs_borrow);
+                        let value = Value::String(rhs);
+                        return Ok(value);
+                    }
+                    if rhs_borrow.is_empty() {
+                        drop(lhs_borrow);
+                        let value = Value::String(lhs);
+                        return Ok(value);
+                    }
+                    if let Cow::Owned(lhs_inner) = &mut *lhs_borrow
+                        && lhs_count == 1
+                    {
+                        lhs_inner.push_str(&rhs_borrow);
+                        drop(lhs_borrow);
+                        let value = Value::String(lhs);
+                        return Ok(value);
+                    }
+                    let lhs_len = lhs_borrow.len();
+                    let rhs_len = rhs_borrow.len();
+                    let mut string = String::with_capacity(lhs_len + rhs_len);
+                    string.push_str(&lhs_borrow);
+                    string.push_str(&rhs_borrow);
+                    let string = Rc::new(RefCell::new(Cow::Owned(string)));
+                    let value = Value::String(string);
                     Ok(value)
                 }
                 (lhs, rhs) => {
@@ -274,7 +315,10 @@ impl<W> Interpreter<W> {
 
     fn evaluate_literal(literal: Literal<'_>) -> Result<Value<'_>, RuntimeError<'_>> {
         let value = match literal {
-            Literal::String(string) => Value::String(string),
+            Literal::String(string) => {
+                let string = Rc::new(RefCell::new(string));
+                Value::String(string)
+            }
             Literal::Number(number) => Value::Number(number),
             Literal::Boolean(boolean) => Value::Boolean(boolean),
             Literal::Nil => Value::Nil,
