@@ -52,17 +52,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn next_token(&mut self) -> Option<Result<Token, LexError>> {
-        match self.peeked.take() {
-            None => self.lexer.next(),
-            Some(peeked) => peeked,
-        }
-    }
-
     fn peek_token(&mut self) -> Option<&Result<Token, LexError>> {
         self.peeked
             .get_or_insert_with(|| self.lexer.next())
             .as_ref()
+    }
+
+    fn next_token(&mut self) -> Option<Result<Token, LexError>> {
+        self.peeked.take().unwrap_or_else(|| self.lexer.next())
     }
 }
 

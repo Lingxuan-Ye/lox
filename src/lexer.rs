@@ -17,14 +17,14 @@ impl<'a> Lexer<'a> {
         self.source
     }
 
+    fn peek_byte<const N: usize>(&self) -> Option<u8> {
+        self.source.as_bytes().get(self.cursor + N).copied()
+    }
+
     fn next_byte(&mut self) -> Option<u8> {
         let byte = self.source.as_bytes().get(self.cursor).copied()?;
         self.cursor += 1;
         Some(byte)
-    }
-
-    fn peek_byte<const N: usize>(&self) -> Option<u8> {
-        self.source.as_bytes().get(self.cursor + N).copied()
     }
 }
 
