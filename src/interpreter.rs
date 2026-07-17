@@ -1,19 +1,93 @@
 use crate::expression::{
     Binary, BinaryOperator, Expression, ExpressionKind, Grouping, Literal, Unary, UnaryOperator,
 };
+use crate::parser::{ParseError, Parser};
+use crate::statement::{Statement, StatementKind};
 use alloc::borrow::Cow;
+use alloc::vec::Vec;
+use core::fmt;
 use core::range::Range;
 
-pub struct Interpreter;
+pub struct Interpreter<W> {
+    output: W,
+}
 
-impl Interpreter {
-    pub fn interpret(expression: Expression<'_>) -> Result<Value<'_>, InterpretError<'_>> {
-        Self::evaluate(expression)
+impl<W> Interpreter<W>
+where
+    W: fmt::Write,
+{
+    pub fn new(output: W) -> Self {
+        Self { output }
     }
 
-    fn evaluate(expression: Expression<'_>) -> Result<Value<'_>, InterpretError<'_>> {
-        let range = expression.range;
-        match expression.kind {
+    pub fn interpret<'a>(&mut self, source: &'a str) -> Result<(), InterpreteError<'a>> {
+        let mut parser = Parser::new(source);
+        let mut errors = Vec::new();
+        let mut expressions = Vec::new();
+
+        while let Some(result) = parser.next() {
+            match result {
+                Err(error) => {
+                    errors.push(error);
+                    parser.synchronize();
+                    while let Some(result) = parser.next() {
+                        if let Err(error) = result {
+                            errors.push(error);
+                            parser.synchronize();
+                        }
+                    }
+                }
+                Ok(statement) => {
+                    expressions.push(statement);
+                }
+            }
+        }
+
+        if !errors.is_empty() {
+            let error = InterpreteError::Parse(errors);
+            return Err(error);
+        }
+
+        for statement in expressions {
+            if let Err(error) = self.execute(statement) {
+                let error = InterpreteError::Runtime(error);
+                return Err(error);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<W> Interpreter<W>
+where
+    W: fmt::Write,
+{
+    fn execute<'a>(&mut self, statement: Statement<'a>) -> Result<(), RuntimeError<'a>> {
+        let Statement { kind, .. } = statement;
+        match kind {
+            StatementKind::Print(expression) => self.execute_print(expression),
+            StatementKind::Expression(expression) => self.execute_expression(expression),
+        }
+    }
+
+    fn execute_print<'a>(&mut self, expression: Expression<'a>) -> Result<(), RuntimeError<'a>> {
+        let value = Self::evaluate(expression)?;
+        writeln!(self.output, "{value}").map_err(RuntimeError::FmtError)
+    }
+
+    fn execute_expression<'a>(
+        &mut self,
+        expression: Expression<'a>,
+    ) -> Result<(), RuntimeError<'a>> {
+        Self::evaluate(expression).map(|_| ())
+    }
+}
+
+impl<W> Interpreter<W> {
+    fn evaluate(expression: Expression<'_>) -> Result<Value<'_>, RuntimeError<'_>> {
+        let Expression { kind, range } = expression;
+        match kind {
             ExpressionKind::Binary(binary) => Self::evaluate_binary(binary, range),
             ExpressionKind::Unary(unary) => Self::evaluate_unary(unary, range),
             ExpressionKind::Grouping(grouping) => Self::evaluate_grouping(grouping),
@@ -24,7 +98,7 @@ impl Interpreter {
     fn evaluate_binary(
         binary: Binary<'_>,
         range: Range<usize>,
-    ) -> Result<Value<'_>, InterpretError<'_>> {
+    ) -> Result<Value<'_>, RuntimeError<'_>> {
         let Binary { operator, lhs, rhs } = binary;
         let lhs = Self::evaluate(*lhs)?;
         let rhs = Self::evaluate(*rhs)?;
@@ -40,7 +114,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 (lhs, rhs) => {
-                    let error = InterpretError::InvalidBinaryOperands {
+                    let error = RuntimeError::InvalidBinaryOperands {
                         operator,
                         lhs,
                         rhs,
@@ -55,7 +129,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 (lhs, rhs) => {
-                    let error = InterpretError::InvalidBinaryOperands {
+                    let error = RuntimeError::InvalidBinaryOperands {
                         operator,
                         lhs,
                         rhs,
@@ -70,7 +144,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 (lhs, rhs) => {
-                    let error = InterpretError::InvalidBinaryOperands {
+                    let error = RuntimeError::InvalidBinaryOperands {
                         operator,
                         lhs,
                         rhs,
@@ -85,7 +159,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 (lhs, rhs) => {
-                    let error = InterpretError::InvalidBinaryOperands {
+                    let error = RuntimeError::InvalidBinaryOperands {
                         operator,
                         lhs,
                         rhs,
@@ -100,7 +174,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 (lhs, rhs) => {
-                    let error = InterpretError::InvalidBinaryOperands {
+                    let error = RuntimeError::InvalidBinaryOperands {
                         operator,
                         lhs,
                         rhs,
@@ -115,7 +189,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 (lhs, rhs) => {
-                    let error = InterpretError::InvalidBinaryOperands {
+                    let error = RuntimeError::InvalidBinaryOperands {
                         operator,
                         lhs,
                         rhs,
@@ -130,7 +204,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 (lhs, rhs) => {
-                    let error = InterpretError::InvalidBinaryOperands {
+                    let error = RuntimeError::InvalidBinaryOperands {
                         operator,
                         lhs,
                         rhs,
@@ -145,7 +219,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 (lhs, rhs) => {
-                    let error = InterpretError::InvalidBinaryOperands {
+                    let error = RuntimeError::InvalidBinaryOperands {
                         operator,
                         lhs,
                         rhs,
@@ -168,7 +242,7 @@ impl Interpreter {
     fn evaluate_unary(
         unary: Unary<'_>,
         range: Range<usize>,
-    ) -> Result<Value<'_>, InterpretError<'_>> {
+    ) -> Result<Value<'_>, RuntimeError<'_>> {
         let Unary { operator, rhs } = unary;
         let rhs = Self::evaluate(*rhs)?;
         match operator {
@@ -178,7 +252,7 @@ impl Interpreter {
                     Ok(value)
                 }
                 _ => {
-                    let error = InterpretError::InvalidUnaryOperand {
+                    let error = RuntimeError::InvalidUnaryOperand {
                         operator,
                         rhs,
                         range,
@@ -194,12 +268,12 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_grouping(grouping: Grouping<'_>) -> Result<Value<'_>, InterpretError<'_>> {
+    fn evaluate_grouping(grouping: Grouping<'_>) -> Result<Value<'_>, RuntimeError<'_>> {
         let Grouping(expression) = grouping;
         Self::evaluate(*expression)
     }
 
-    fn evaluate_literal(literal: Literal<'_>) -> Result<Value<'_>, InterpretError<'_>> {
+    fn evaluate_literal(literal: Literal<'_>) -> Result<Value<'_>, RuntimeError<'_>> {
         let value = match literal {
             Literal::String(string) => Value::String(string),
             Literal::Number(number) => Value::Number(number),
@@ -228,8 +302,26 @@ impl From<Value<'_>> for bool {
     }
 }
 
+impl fmt::Display for Value<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::String(string) => write!(f, "{string}"),
+            Value::Number(number) => write!(f, "{number}"),
+            Value::Boolean(boolean) => write!(f, "{boolean}"),
+            Value::Nil => f.write_str("nil"),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
-pub enum InterpretError<'a> {
+pub enum InterpreteError<'a> {
+    Parse(Vec<ParseError<'a>>),
+    Runtime(RuntimeError<'a>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RuntimeError<'a> {
+    FmtError(fmt::Error),
     InvalidBinaryOperands {
         operator: BinaryOperator,
         lhs: Value<'a>,
