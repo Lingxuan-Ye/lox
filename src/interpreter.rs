@@ -454,5 +454,45 @@ mod tests {
         let error = InterpreteError::Runtime(error);
         assert_eq!(result, Err(error));
         assert_eq!(interpreter.output, "6\nnil\n");
+
+        interpreter.output.clear();
+
+        let source = r#"
+            var a = "global a";
+            var b = "global b";
+            var c = "global c";
+            {
+                var a = "outer a";
+                var b = "outer b";
+                {
+                    var a = "inner a";
+                    print a;
+                    print b;
+                    print c;
+                }
+                print a;
+                print b;
+                print c;
+            }
+            print a;
+            print b;
+            print c;
+        "#;
+        let result = interpreter.interpret(source);
+        assert!(result.is_ok());
+        assert_eq!(
+            interpreter.output,
+            "\
+inner a
+outer b
+global c
+outer a
+outer b
+global c
+global a
+global b
+global c
+"
+        );
     }
 }
