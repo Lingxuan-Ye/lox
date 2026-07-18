@@ -1,16 +1,16 @@
-use crate::value::Value;
+use super::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Debug, Default)]
-pub struct Environment<'a> {
-    pub enclosing: Option<Rc<RefCell<Self>>>,
+pub(super) struct Environment<'a> {
+    pub(super) enclosing: Option<Rc<RefCell<Self>>>,
     variables: HashMap<&'a str, Value<'a>>,
 }
 
 impl<'a> Environment<'a> {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         let enclosing = None;
         let variables = HashMap::new();
         Self {
@@ -19,7 +19,7 @@ impl<'a> Environment<'a> {
         }
     }
 
-    pub fn with_enclosing(enclosing: Rc<RefCell<Self>>) -> Self {
+    pub(super) fn with_enclosing(enclosing: Rc<RefCell<Self>>) -> Self {
         let enclosing = Some(enclosing);
         let variables = HashMap::new();
         Self {
@@ -28,19 +28,15 @@ impl<'a> Environment<'a> {
         }
     }
 
-    pub fn into_shared(self) -> Rc<RefCell<Self>> {
+    pub(super) fn into_shared(self) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(self))
     }
 
-    pub fn variables(&self) -> &HashMap<&'a str, Value<'a>> {
-        &self.variables
-    }
-
-    pub fn define(&mut self, name: &'a str, value: Value<'a>) {
+    pub(super) fn define(&mut self, name: &'a str, value: Value<'a>) {
         self.variables.insert(name, value);
     }
 
-    pub fn assign(
+    pub(super) fn assign(
         &mut self,
         name: &'a str,
         value: Value<'a>,
@@ -55,7 +51,7 @@ impl<'a> Environment<'a> {
         Err(UndefinedVariable)
     }
 
-    pub fn get(&self, name: &str) -> Option<Value<'a>> {
+    pub(super) fn get(&self, name: &str) -> Option<Value<'a>> {
         if let Some(value) = self.variables.get(name).cloned() {
             return Some(value);
         }
@@ -67,4 +63,4 @@ impl<'a> Environment<'a> {
 }
 
 #[derive(Debug, Default)]
-pub struct UndefinedVariable;
+pub(super) struct UndefinedVariable;

@@ -5,11 +5,14 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value<'a> {
-    String(Rc<RefCell<Cow<'a, str>>>),
+    String(StringValue<'a>),
     Number(f64),
     Boolean(bool),
     Nil,
 }
+
+#[derive(Clone, PartialEq)]
+pub struct StringValue<'a>(pub(super) Rc<RefCell<Cow<'a, str>>>);
 
 impl Value<'_> {
     pub fn is_truthy(&self) -> bool {
@@ -37,7 +40,7 @@ impl From<String> for Value<'_> {
 
 impl<'a> From<Cow<'a, str>> for Value<'a> {
     fn from(value: Cow<'a, str>) -> Self {
-        let string = Rc::new(RefCell::new(value));
+        let string = StringValue(Rc::new(RefCell::new(value)));
         Value::String(string)
     }
 }
@@ -57,19 +60,31 @@ impl From<bool> for Value<'_> {
 impl fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::String(string) => {
-                let string = string.borrow();
-                write!(f, "{string}")
-            }
-            Value::Number(number) => {
-                if number.fract() == 0.0 {
-                    write!(f, "{number:.0}")
-                } else {
-                    write!(f, "{number}")
-                }
-            }
-            Value::Boolean(boolean) => write!(f, "{boolean}"),
+            Value::String(string) => string.0.borrow().fmt(f),
+            Value::Number(number) => number.fmt(f),
+            Value::Boolean(boolean) => boolean.fmt(f),
             Value::Nil => f.write_str("nil"),
         }
+    }
+}
+
+impl StringValue<'_> {
+    pub fn with<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&str) -> T,
+    {
+        f(&self.0.borrow())
+    }
+}
+
+impl fmt::Debug for StringValue<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.borrow().fmt(f)
+    }
+}
+
+impl fmt::Display for StringValue<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.borrow().fmt(f)
     }
 }

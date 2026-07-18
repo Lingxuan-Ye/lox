@@ -1,4 +1,4 @@
-use crate::expression::Expression;
+use super::expression::Expression;
 use std::range::Range;
 
 #[derive(Debug, PartialEq)]

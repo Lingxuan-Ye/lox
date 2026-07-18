@@ -65,7 +65,7 @@ impl<'a> Expression<'a> {
         let kind = ExpressionKind::Assignment { name, value };
         Self { kind, range }
     }
-    
+
     pub fn binary(operator: BinaryOperator, lhs: Self, rhs: Self, range: Range<usize>) -> Self {
         let lhs = Box::new(lhs);
         let rhs = Box::new(rhs);

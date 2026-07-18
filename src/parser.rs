@@ -1,6 +1,6 @@
-use crate::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
+use crate::ast::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
+use crate::ast::statement::Statement;
 use crate::lexer::{LexError, Lexer};
-use crate::statement::Statement;
 use crate::token::{Keyword, Token, TokenKind};
 use std::borrow::Cow;
 use std::range::Range;

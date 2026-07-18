@@ -1,13 +1,17 @@
-use crate::environment::Environment;
-use crate::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
+pub use self::value::{StringValue, Value};
+
+use self::environment::Environment;
+use crate::ast::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
+use crate::ast::statement::{Statement, StatementKind};
 use crate::parser::{ParseError, Parser};
-use crate::statement::{Statement, StatementKind};
-use crate::value::Value;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::io;
 use std::range::Range;
 use std::rc::Rc;
+
+mod environment;
+mod value;
 
 pub struct Interpreter<'a, W> {
     environment: Rc<RefCell<Environment<'a>>>,
@@ -164,8 +168,8 @@ impl<'a, W> Interpreter<'a, W> {
                     Ok(value)
                 }
                 (Value::String(lhs), Value::String(rhs)) => {
-                    if Rc::ptr_eq(&lhs, &rhs) {
-                        let borrow = lhs.borrow();
+                    if Rc::ptr_eq(&lhs.0, &rhs.0) {
+                        let borrow = lhs.0.borrow();
                         if borrow.is_empty() {
                             drop(borrow);
                             let value = Value::String(lhs);
@@ -175,9 +179,9 @@ impl<'a, W> Interpreter<'a, W> {
                         let value = Value::from(string);
                         return Ok(value);
                     }
-                    let lhs_count = Rc::strong_count(&lhs);
-                    let mut lhs_borrow = lhs.borrow_mut();
-                    let rhs_borrow = rhs.borrow();
+                    let lhs_count = Rc::strong_count(&lhs.0);
+                    let mut lhs_borrow = lhs.0.borrow_mut();
+                    let rhs_borrow = rhs.0.borrow();
                     if lhs_borrow.is_empty() {
                         drop(rhs_borrow);
                         let value = Value::String(rhs);
