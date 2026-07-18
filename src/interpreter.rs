@@ -5,7 +5,7 @@ use crate::statement::{Statement, StatementKind};
 use crate::value::Value;
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::fmt;
+use std::io;
 use std::range::Range;
 use std::rc::Rc;
 
@@ -16,7 +16,7 @@ pub struct Interpreter<'a, W> {
 
 impl<'a, W> Interpreter<'a, W>
 where
-    W: fmt::Write,
+    W: io::Write,
 {
     pub fn new(output: W) -> Self {
         let environment = Environment::new().into_shared();
@@ -62,7 +62,7 @@ where
 
 impl<'a, W> Interpreter<'a, W>
 where
-    W: fmt::Write,
+    W: io::Write,
 {
     fn execute(&mut self, statement: Statement<'a>) -> Result<(), RuntimeError<'a>> {
         let Statement { kind, .. } = statement;
@@ -106,7 +106,7 @@ where
 
     fn execute_print(&mut self, expression: Expression<'a>) -> Result<(), RuntimeError<'a>> {
         let value = self.evaluate(expression)?;
-        writeln!(self.output, "{value}").map_err(RuntimeError::FmtError)
+        writeln!(self.output, "{value}").map_err(RuntimeError::IoError)
     }
 
     fn execute_expression(&mut self, expression: Expression<'a>) -> Result<(), RuntimeError<'a>> {
@@ -385,15 +385,15 @@ impl<'a, W> Interpreter<'a, W> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum InterpreteError<'a> {
     Parse(Vec<ParseError>),
     Runtime(RuntimeError<'a>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum RuntimeError<'a> {
-    FmtError(fmt::Error),
+    IoError(io::Error),
     InvalidBinaryOperands {
         operator: BinaryOperator,
         lhs: Value<'a>,
@@ -416,7 +416,7 @@ mod tests {
 
     #[test]
     fn test_interpreter() {
-        let mut output = String::new();
+        let mut output = Vec::new();
         let mut interpreter = Interpreter::new(&mut output);
 
         let source = r#"
@@ -430,30 +430,31 @@ mod tests {
         "#;
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
-        assert_eq!(interpreter.output, "6\n");
+        assert_eq!(interpreter.output, b"6\n");
 
         let source = "foo;";
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
-        assert_eq!(interpreter.output, "6\n");
+        assert_eq!(interpreter.output, b"6\n");
 
         let source = "baz;";
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
-        assert_eq!(interpreter.output, "6\n");
+        assert_eq!(interpreter.output, b"6\n");
 
         let source = "print baz;";
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
-        assert_eq!(interpreter.output, "6\nnil\n");
+        assert_eq!(interpreter.output, b"6\nnil\n");
 
         let source = "qux;";
         let result = interpreter.interpret(source);
-        let range = Range { start: 0, end: 3 };
-        let error = RuntimeError::UndefinedVariable { range };
-        let error = InterpreteError::Runtime(error);
-        assert_eq!(result, Err(error));
-        assert_eq!(interpreter.output, "6\nnil\n");
+        let Err(InterpreteError::Runtime(RuntimeError::UndefinedVariable { range })) = result
+        else {
+            unreachable!()
+        };
+        assert_eq!(range, Range { start: 0, end: 3 });
+        assert_eq!(interpreter.output, b"6\nnil\n");
 
         interpreter.output.clear();
 
@@ -482,7 +483,7 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(
             interpreter.output,
-            "\
+            b"\
 inner a
 outer b
 global c

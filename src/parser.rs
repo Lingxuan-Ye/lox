@@ -78,9 +78,7 @@ impl<'a> Parser<'a> {
             _ => self.statement(),
         };
 
-        let Some(result) = option else {
-            unreachable!();
-        };
+        let Some(result) = option else { unreachable!() };
 
         if result.is_err() {
             self.synchronize();
