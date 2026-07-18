@@ -1,6 +1,4 @@
-use crate::expression::{
-    Binary, BinaryOperator, Expression, ExpressionKind, Grouping, Literal, Unary, UnaryOperator,
-};
+use crate::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
 use crate::parser::{ParseError, Parser};
 use crate::statement::{Statement, StatementKind};
 use crate::value::Value;
@@ -90,20 +88,23 @@ impl<W> Interpreter<W> {
     fn evaluate(expression: Expression<'_>) -> Result<Value<'_>, RuntimeError<'_>> {
         let Expression { kind, range } = expression;
         match kind {
-            ExpressionKind::Binary(binary) => Self::evaluate_binary(binary, range),
-            ExpressionKind::Unary(unary) => Self::evaluate_unary(unary, range),
-            ExpressionKind::Grouping(grouping) => Self::evaluate_grouping(grouping),
+            ExpressionKind::Binary { operator, lhs, rhs } => {
+                Self::evaluate_binary(operator, *lhs, *rhs, range)
+            }
+            ExpressionKind::Unary { operator, rhs } => Self::evaluate_unary(operator, *rhs, range),
+            ExpressionKind::Grouping { expression } => Self::evaluate_grouping(*expression),
             ExpressionKind::Literal(literal) => Self::evaluate_literal(literal),
         }
     }
 
-    fn evaluate_binary(
-        binary: Binary<'_>,
+    fn evaluate_binary<'a>(
+        operator: BinaryOperator,
+        lhs: Expression<'a>,
+        rhs: Expression<'a>,
         range: Range<usize>,
-    ) -> Result<Value<'_>, RuntimeError<'_>> {
-        let Binary { operator, lhs, rhs } = binary;
-        let lhs = Self::evaluate(*lhs)?;
-        let rhs = Self::evaluate(*rhs)?;
+    ) -> Result<Value<'a>, RuntimeError<'a>> {
+        let lhs = Self::evaluate(lhs)?;
+        let rhs = Self::evaluate(rhs)?;
         match operator {
             BinaryOperator::Add => match (lhs, rhs) {
                 (Value::Number(lhs), Value::Number(rhs)) => {
@@ -279,12 +280,12 @@ impl<W> Interpreter<W> {
         }
     }
 
-    fn evaluate_unary(
-        unary: Unary<'_>,
+    fn evaluate_unary<'a>(
+        operator: UnaryOperator,
+        rhs: Expression<'a>,
         range: Range<usize>,
-    ) -> Result<Value<'_>, RuntimeError<'_>> {
-        let Unary { operator, rhs } = unary;
-        let rhs = Self::evaluate(*rhs)?;
+    ) -> Result<Value<'a>, RuntimeError<'a>> {
+        let rhs = Self::evaluate(rhs)?;
         match operator {
             UnaryOperator::Neg => match rhs {
                 Value::Number(number) => {
@@ -308,12 +309,11 @@ impl<W> Interpreter<W> {
         }
     }
 
-    fn evaluate_grouping(grouping: Grouping<'_>) -> Result<Value<'_>, RuntimeError<'_>> {
-        let Grouping(expression) = grouping;
-        Self::evaluate(*expression)
+    fn evaluate_grouping<'a>(expression: Expression<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
+        Self::evaluate(expression)
     }
 
-    fn evaluate_literal(literal: Literal<'_>) -> Result<Value<'_>, RuntimeError<'_>> {
+    fn evaluate_literal<'a>(literal: Literal<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         let value = match literal {
             Literal::String(string) => {
                 let string = Rc::new(RefCell::new(string));
