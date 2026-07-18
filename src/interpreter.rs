@@ -4,7 +4,6 @@ use crate::parser::{ParseError, Parser};
 use crate::statement::{Statement, StatementKind};
 use crate::value::Value;
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::fmt;
 use std::range::Range;
 use std::rc::Rc;
@@ -153,8 +152,7 @@ impl<'a, W> Interpreter<'a, W> {
                             return Ok(value);
                         }
                         let string = borrow.repeat(2);
-                        let string = Rc::new(RefCell::new(Cow::Owned(string)));
-                        let value = Value::String(string);
+                        let value = Value::from(string);
                         return Ok(value);
                     }
                     let lhs_count = Rc::strong_count(&lhs);
@@ -183,8 +181,7 @@ impl<'a, W> Interpreter<'a, W> {
                     let mut string = String::with_capacity(lhs_len + rhs_len);
                     string.push_str(&lhs_borrow);
                     string.push_str(&rhs_borrow);
-                    let string = Rc::new(RefCell::new(Cow::Owned(string)));
-                    let value = Value::String(string);
+                    let value = Value::from(string);
                     Ok(value)
                 }
                 (lhs, rhs) => {
@@ -336,7 +333,7 @@ impl<'a, W> Interpreter<'a, W> {
                 }
             },
             UnaryOperator::Not => {
-                let boolean = bool::from(rhs);
+                let boolean = rhs.is_truthy();
                 let value = Value::Boolean(!boolean);
                 Ok(value)
             }
@@ -352,10 +349,7 @@ impl<'a, W> Interpreter<'a, W> {
 
     fn evaluate_literal(literal: Literal<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         let value = match literal {
-            Literal::String(string) => {
-                let string = Rc::new(RefCell::new(string));
-                Value::String(string)
-            }
+            Literal::String(string) => Value::from(string),
             Literal::Number(number) => Value::Number(number),
             Literal::Boolean(boolean) => Value::Boolean(boolean),
             Literal::Nil => Value::Nil,

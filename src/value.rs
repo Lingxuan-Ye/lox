@@ -11,13 +11,46 @@ pub enum Value<'a> {
     Nil,
 }
 
-impl From<Value<'_>> for bool {
-    fn from(value: Value<'_>) -> Self {
-        match value {
-            Value::Boolean(boolean) => boolean,
+impl Value<'_> {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Value::Boolean(boolean) => *boolean,
             Value::Nil => false,
             _ => true,
         }
+    }
+}
+
+impl<'a> From<&'a str> for Value<'a> {
+    fn from(value: &'a str) -> Self {
+        let string = Cow::Borrowed(value);
+        Value::from(string)
+    }
+}
+
+impl From<String> for Value<'_> {
+    fn from(value: String) -> Self {
+        let string = Cow::Owned(value);
+        Value::from(string)
+    }
+}
+
+impl<'a> From<Cow<'a, str>> for Value<'a> {
+    fn from(value: Cow<'a, str>) -> Self {
+        let string = Rc::new(RefCell::new(value));
+        Value::String(string)
+    }
+}
+
+impl From<f64> for Value<'_> {
+    fn from(value: f64) -> Self {
+        Value::Number(value)
+    }
+}
+
+impl From<bool> for Value<'_> {
+    fn from(value: bool) -> Self {
+        Value::Boolean(value)
     }
 }
 
