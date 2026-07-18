@@ -26,6 +26,10 @@ where
         }
     }
 
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.output.flush()
+    }
+
     pub fn interpret(&mut self, source: &'a str) -> Result<(), InterpreteError<'a>> {
         let mut parser = Parser::new(source);
         let mut statements = Vec::new();
