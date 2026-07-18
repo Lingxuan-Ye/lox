@@ -376,7 +376,7 @@ impl<'a, W> Interpreter<'a, W> {
 
 #[derive(Debug, PartialEq)]
 pub enum InterpreteError<'a> {
-    Parse(Vec<ParseError<'a>>),
+    Parse(Vec<ParseError>),
     Runtime(RuntimeError<'a>),
 }
 

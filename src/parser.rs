@@ -63,7 +63,7 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn declaration(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+    fn declaration(&mut self) -> Option<Result<Statement<'a>, ParseError>> {
         let Ok(token) = self.peek_token()? else {
             let Some(Err(error)) = self.next_token() else {
                 unreachable!()
@@ -85,7 +85,7 @@ impl<'a> Parser<'a> {
         Some(result)
     }
 
-    fn variable_declaration(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+    fn variable_declaration(&mut self) -> Option<Result<Statement<'a>, ParseError>> {
         let token = match self.next_token()? {
             Err(error) => {
                 let error = ParseError::LexError(error);
@@ -176,7 +176,7 @@ impl<'a> Parser<'a> {
         Some(Ok(statement))
     }
 
-    fn statement(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+    fn statement(&mut self) -> Option<Result<Statement<'a>, ParseError>> {
         let Ok(token) = self.peek_token()? else {
             let Some(Err(error)) = self.next_token() else {
                 unreachable!()
@@ -191,7 +191,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn print_statement(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+    fn print_statement(&mut self) -> Option<Result<Statement<'a>, ParseError>> {
         let token = match self.next_token()? {
             Err(error) => {
                 let error = ParseError::LexError(error);
@@ -243,7 +243,7 @@ impl<'a> Parser<'a> {
         Some(Ok(statement))
     }
 
-    fn expression_statement(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+    fn expression_statement(&mut self) -> Option<Result<Statement<'a>, ParseError>> {
         let expression = match self.expression()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
@@ -273,11 +273,11 @@ impl<'a> Parser<'a> {
         Some(Ok(statement))
     }
 
-    fn expression(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+    fn expression(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
         self.assignment()
     }
 
-    fn assignment(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+    fn assignment(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
         let lhs = match self.equality()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
@@ -323,7 +323,7 @@ impl<'a> Parser<'a> {
         Some(Ok(expression))
     }
 
-    fn equality(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+    fn equality(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
         let mut lhs = match self.comparison()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
@@ -368,7 +368,7 @@ impl<'a> Parser<'a> {
         Some(Ok(lhs))
     }
 
-    fn comparison(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+    fn comparison(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
         let mut lhs = match self.term()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
@@ -415,7 +415,7 @@ impl<'a> Parser<'a> {
         Some(Ok(lhs))
     }
 
-    fn term(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+    fn term(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
         let mut lhs = match self.factor()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
@@ -460,7 +460,7 @@ impl<'a> Parser<'a> {
         Some(Ok(lhs))
     }
 
-    fn factor(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+    fn factor(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
         let mut lhs = match self.unary()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
@@ -505,7 +505,7 @@ impl<'a> Parser<'a> {
         Some(Ok(lhs))
     }
 
-    fn unary(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+    fn unary(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
         let Ok(token) = self.peek_token()? else {
             let Some(Err(error)) = self.next_token() else {
                 unreachable!()
@@ -539,7 +539,7 @@ impl<'a> Parser<'a> {
         Some(Ok(expression))
     }
 
-    fn primary(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+    fn primary(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
         let token = match self.next_token()? {
             Err(error) => {
                 let error = ParseError::LexError(error);
@@ -648,11 +648,10 @@ impl<'a> Parser<'a> {
                         b'\\' => commit('\\', 2),
                         b'x' => {
                             let Some(bytes) = remaining_bytes.get(2..4) else {
-                                let sequence = remaining;
                                 let start = raw_range.start + plain_text_range.end;
                                 let end = raw_range.end;
                                 let range = Range { start, end };
-                                let error = ParseError::InvalidEscapeSequence { sequence, range };
+                                let error = ParseError::InvalidEscapeSequence { range };
                                 return Some(Err(error));
                             };
                             let mut code = 0;
@@ -670,43 +669,38 @@ impl<'a> Parser<'a> {
                                     _ => {
                                         let char_len = byte.leading_ones().max(1) as usize;
                                         let len = offset + char_len;
-                                        let sequence = &remaining[..len];
                                         let start = raw_range.start + plain_text_range.end;
                                         let end = start + len;
                                         let range = Range { start, end };
-                                        let error =
-                                            ParseError::InvalidEscapeSequence { sequence, range };
+                                        let error = ParseError::InvalidEscapeSequence { range };
                                         return Some(Err(error));
                                     }
                                 }
                             }
                             if code > 0x7F {
-                                let sequence = &remaining[..4];
                                 let start = raw_range.start + plain_text_range.end;
                                 let end = start + 4;
                                 let range = Range { start, end };
-                                let error = ParseError::InvalidEscapeSequence { sequence, range };
+                                let error = ParseError::InvalidEscapeSequence { range };
                                 return Some(Err(error));
                             }
                             commit(code as char, 4);
                         }
                         b'u' => {
                             let [byte_2, byte_3, ..] = &remaining_bytes[2..] else {
-                                let sequence = remaining;
                                 let start = raw_range.start + plain_text_range.end;
                                 let end = raw_range.end;
                                 let range = Range { start, end };
-                                let error = ParseError::InvalidEscapeSequence { sequence, range };
+                                let error = ParseError::InvalidEscapeSequence { range };
                                 return Some(Err(error));
                             };
                             if *byte_2 != b'{' {
                                 let char_len = byte_2.leading_ones().max(1) as usize;
                                 let len = 2 + char_len;
-                                let sequence = &remaining[..len];
                                 let start = raw_range.start + plain_text_range.end;
                                 let end = start + len;
                                 let range = Range { start, end };
-                                let error = ParseError::InvalidEscapeSequence { sequence, range };
+                                let error = ParseError::InvalidEscapeSequence { range };
                                 return Some(Err(error));
                             }
                             let mut code = match byte_3 {
@@ -716,12 +710,10 @@ impl<'a> Parser<'a> {
                                 _ => {
                                     let char_len = byte_3.leading_ones().max(1) as usize;
                                     let len = 3 + char_len;
-                                    let sequence = &remaining[..len];
                                     let start = raw_range.start + plain_text_range.end;
                                     let end = start + len;
                                     let range = Range { start, end };
-                                    let error =
-                                        ParseError::InvalidEscapeSequence { sequence, range };
+                                    let error = ParseError::InvalidEscapeSequence { range };
                                     return Some(Err(error));
                                 }
                             };
@@ -730,12 +722,10 @@ impl<'a> Parser<'a> {
                                 let byte = match remaining_bytes.get(offset) {
                                     Some(byte) if offset < 10 => byte,
                                     _ => {
-                                        let sequence = &remaining[..offset];
                                         let start = raw_range.start + plain_text_range.end;
                                         let end = start + offset;
                                         let range = Range { start, end };
-                                        let error =
-                                            ParseError::InvalidEscapeSequence { sequence, range };
+                                        let error = ParseError::InvalidEscapeSequence { range };
                                         return Some(Err(error));
                                     }
                                 };
@@ -752,14 +742,10 @@ impl<'a> Parser<'a> {
                                     b'}' => {
                                         let len = offset + 1;
                                         let Some(char) = char::from_u32(code) else {
-                                            let sequence = &remaining[..len];
                                             let start = raw_range.start + plain_text_range.end;
                                             let end = start + len;
                                             let range = Range { start, end };
-                                            let error = ParseError::InvalidEscapeSequence {
-                                                sequence,
-                                                range,
-                                            };
+                                            let error = ParseError::InvalidEscapeSequence { range };
                                             return Some(Err(error));
                                         };
                                         commit(char, len);
@@ -768,12 +754,10 @@ impl<'a> Parser<'a> {
                                     _ => {
                                         let char_len = byte.leading_ones().max(1) as usize;
                                         let len = offset + char_len;
-                                        let sequence = &remaining[..len];
                                         let start = raw_range.start + plain_text_range.end;
                                         let end = start + len;
                                         let range = Range { start, end };
-                                        let error =
-                                            ParseError::InvalidEscapeSequence { sequence, range };
+                                        let error = ParseError::InvalidEscapeSequence { range };
                                         return Some(Err(error));
                                     }
                                 }
@@ -783,11 +767,10 @@ impl<'a> Parser<'a> {
                         _ => {
                             let char_len = byte_1.leading_ones().max(1) as usize;
                             let len = 1 + char_len;
-                            let sequence = &remaining[..len];
                             let start = raw_range.start + plain_text_range.end;
                             let end = start + len;
                             let range = Range { start, end };
-                            let error = ParseError::InvalidEscapeSequence { sequence, range };
+                            let error = ParseError::InvalidEscapeSequence { range };
                             return Some(Err(error));
                         }
                     }
@@ -846,7 +829,7 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Iterator for Parser<'a> {
-    type Item = Result<Statement<'a>, ParseError<'a>>;
+    type Item = Result<Statement<'a>, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.declaration()
@@ -854,15 +837,10 @@ impl<'a> Iterator for Parser<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ParseError<'a> {
+pub enum ParseError {
     LexError(LexError),
     UnexpectedEndOfInput,
     UnexpectedToken(Token),
-    InvalidAssignmentTarget {
-        range: Range<usize>,
-    },
-    InvalidEscapeSequence {
-        sequence: &'a str,
-        range: Range<usize>,
-    },
+    InvalidAssignmentTarget { range: Range<usize> },
+    InvalidEscapeSequence { range: Range<usize> },
 }
