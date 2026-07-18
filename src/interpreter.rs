@@ -125,7 +125,7 @@ impl<'a, W> Interpreter<'a, W> {
         let value = self.evaluate(value)?;
         self.environment
             .assign(name, value)
-            .map_err(|_| RuntimeError::UndefinedVariable { name, range })
+            .map_err(|_| RuntimeError::UndefinedVariable { range })
     }
 
     fn evaluate_binary(
@@ -359,12 +359,12 @@ impl<'a, W> Interpreter<'a, W> {
 
     fn evaluate_variable(
         &self,
-        name: &'a str,
+        name: &str,
         range: Range<usize>,
     ) -> Result<Value<'a>, RuntimeError<'a>> {
         self.environment
             .get(name)
-            .ok_or(RuntimeError::UndefinedVariable { name, range })
+            .ok_or(RuntimeError::UndefinedVariable { range })
     }
 }
 
@@ -389,7 +389,6 @@ pub enum RuntimeError<'a> {
         range: Range<usize>,
     },
     UndefinedVariable {
-        name: &'a str,
         range: Range<usize>,
     },
 }
@@ -434,7 +433,7 @@ mod tests {
         let source = "qux;";
         let result = interpreter.interpret(source);
         let range = Range { start: 0, end: 3 };
-        let error = RuntimeError::UndefinedVariable { name: "qux", range };
+        let error = RuntimeError::UndefinedVariable { range };
         let error = InterpreteError::Runtime(error);
         assert_eq!(result, Err(error));
         assert_eq!(interpreter.output, "6\nnil\n");
