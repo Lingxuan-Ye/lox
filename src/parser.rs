@@ -1,4 +1,4 @@
-use crate::expression::{BinaryOperator, Expression, Literal, UnaryOperator};
+use crate::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
 use crate::lexer::{LexError, Lexer};
 use crate::statement::Statement;
 use crate::token::{Keyword, Token, TokenKind};
@@ -22,7 +22,7 @@ impl<'a> Parser<'a> {
         self.lexer.source()
     }
 
-    pub fn synchronize(&mut self) {
+    fn synchronize(&mut self) {
         while let Some(token) = self.peek_token() {
             match token {
                 Err(_) => {
@@ -63,6 +63,119 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    fn declaration(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+        let Ok(token) = self.peek_token()? else {
+            let Some(Err(error)) = self.next_token() else {
+                unreachable!()
+            };
+            self.synchronize();
+            let error = ParseError::LexError(error);
+            return Some(Err(error));
+        };
+
+        let result = match token.kind {
+            TokenKind::Keyword(Keyword::Var) => self.variable_declaration()?,
+            _ => self.statement()?,
+        };
+
+        if result.is_err() {
+            self.synchronize();
+        }
+
+        Some(result)
+    }
+
+    fn variable_declaration(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+        let token = match self.next_token()? {
+            Err(error) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Ok(token) => token,
+        };
+
+        if token.kind != TokenKind::Keyword(Keyword::Var) {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        // The early returns above are unreachable when called from `Parser::statement`.
+        // They exist only for correctness should this method ever be called directly,
+        // even though it is not intended to.
+
+        let start = token.range.start;
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::Identifier {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let name = &self.source()[token.range];
+
+        let token = match self.peek_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(_)) => {
+                let Some(Err(error)) = self.next_token() else {
+                    unreachable!()
+                };
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        let initializer = if token.kind != TokenKind::Equal {
+            None
+        } else {
+            self.next_token();
+            match self.expression() {
+                None => {
+                    let error = ParseError::UnexpectedEndOfInput;
+                    return Some(Err(error));
+                }
+                Some(Err(error)) => return Some(Err(error)),
+                Some(Ok(expression)) => Some(expression),
+            }
+        };
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::Semicolon {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let end = token.range.end;
+        let range = Range { start, end };
+        let statement = Statement::variable_declaration(name, initializer, range);
+        Some(Ok(statement))
+    }
+
     fn statement(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
         let Ok(token) = self.peek_token()? else {
             let Some(Err(error)) = self.next_token() else {
@@ -73,87 +186,141 @@ impl<'a> Parser<'a> {
         };
 
         match token.kind {
-            TokenKind::Keyword(Keyword::Print) => {
-                let start = token.range.start;
-
-                self.next_token();
-
-                let expression = match self.expression() {
-                    None => {
-                        let error = ParseError::UnexpectedEndOfInput;
-                        return Some(Err(error));
-                    }
-                    Some(Err(error)) => return Some(Err(error)),
-                    Some(Ok(expression)) => expression,
-                };
-
-                let token = match self.next_token() {
-                    None => {
-                        let error = ParseError::UnexpectedEndOfInput;
-                        return Some(Err(error));
-                    }
-                    Some(Err(error)) => {
-                        let error = ParseError::LexError(error);
-                        return Some(Err(error));
-                    }
-                    Some(Ok(token)) => token,
-                };
-
-                match token.kind {
-                    TokenKind::Semicolon => {
-                        let end = token.range.end;
-                        let range = Range { start, end };
-                        let statement = Statement::print(expression, range);
-                        Some(Ok(statement))
-                    }
-                    _ => {
-                        let error = ParseError::UnexpectedToken(token);
-                        Some(Err(error))
-                    }
-                }
-            }
-
-            _ => {
-                let expression = match self.expression() {
-                    None => {
-                        let error = ParseError::UnexpectedEndOfInput;
-                        return Some(Err(error));
-                    }
-                    Some(Err(error)) => return Some(Err(error)),
-                    Some(Ok(expression)) => expression,
-                };
-
-                let token = match self.next_token() {
-                    None => {
-                        let error = ParseError::UnexpectedEndOfInput;
-                        return Some(Err(error));
-                    }
-                    Some(Err(error)) => {
-                        let error = ParseError::LexError(error);
-                        return Some(Err(error));
-                    }
-                    Some(Ok(token)) => token,
-                };
-
-                match token.kind {
-                    TokenKind::Semicolon => {
-                        let start = expression.range.start;
-                        let end = token.range.end;
-                        let range = Range { start, end };
-                        let statement = Statement::expression(expression, range);
-                        Some(Ok(statement))
-                    }
-                    _ => {
-                        let error = ParseError::UnexpectedToken(token);
-                        Some(Err(error))
-                    }
-                }
-            }
+            TokenKind::Keyword(Keyword::Print) => self.print_statement(),
+            _ => self.expression_statement(),
         }
     }
 
+    fn print_statement(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+        let token = match self.next_token()? {
+            Err(error) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Ok(token) => token,
+        };
+
+        if token.kind != TokenKind::Keyword(Keyword::Print) {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        // The early returns above are unreachable when called from `Parser::statement`.
+        // They exist only for correctness should this method ever be called directly,
+        // even though it is not intended to.
+
+        let start = token.range.start;
+
+        let expression = match self.expression() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => return Some(Err(error)),
+            Some(Ok(expression)) => expression,
+        };
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::Semicolon {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let end = token.range.end;
+        let range = Range { start, end };
+        let statement = Statement::print(expression, range);
+        Some(Ok(statement))
+    }
+
+    fn expression_statement(&mut self) -> Option<Result<Statement<'a>, ParseError<'a>>> {
+        let expression = match self.expression()? {
+            Err(error) => return Some(Err(error)),
+            Ok(expression) => expression,
+        };
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::Semicolon {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let start = expression.range.start;
+        let end = token.range.end;
+        let range = Range { start, end };
+        let statement = Statement::expression(expression, range);
+        Some(Ok(statement))
+    }
+
     fn expression(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
+        let lhs = match self.equality()? {
+            Err(error) => return Some(Err(error)),
+            Ok(expression) => expression,
+        };
+
+        let token = match self.peek_token() {
+            None => return Some(Ok(lhs)),
+            Some(Err(_)) => {
+                let Some(Err(error)) = self.next_token() else {
+                    unreachable!()
+                };
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::Equal {
+            return Some(Ok(lhs));
+        }
+
+        self.next_token();
+
+        let ExpressionKind::Variable { name } = lhs.kind else {
+            let range = lhs.range;
+            let error = ParseError::InvalidAssignmentTarget { range };
+            return Some(Err(error));
+        };
+
+        let value = match self.assignment() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => return Some(Err(error)),
+            Some(Ok(expression)) => expression,
+        };
+
+        let start = lhs.range.start;
+        let end = value.range.end;
+        let range = Range { start, end };
+        let expression = Expression::assignment(name, value, range);
+        Some(Ok(expression))
     }
 
     fn equality(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
@@ -183,19 +350,19 @@ impl<'a> Parser<'a> {
 
             self.next_token();
 
-            match self.comparison() {
+            let rhs = match self.comparison() {
                 None => {
                     let error = ParseError::UnexpectedEndOfInput;
                     return Some(Err(error));
                 }
                 Some(Err(error)) => return Some(Err(error)),
-                Some(Ok(rhs)) => {
-                    let start = lhs.range.start;
-                    let end = rhs.range.end;
-                    let range = Range { start, end };
-                    lhs = Expression::binary(operator, lhs, rhs, range);
-                }
-            }
+                Some(Ok(rhs)) => rhs,
+            };
+
+            let start = lhs.range.start;
+            let end = rhs.range.end;
+            let range = Range { start, end };
+            lhs = Expression::binary(operator, lhs, rhs, range);
         }
 
         Some(Ok(lhs))
@@ -230,19 +397,19 @@ impl<'a> Parser<'a> {
 
             self.next_token();
 
-            match self.term() {
+            let rhs = match self.term() {
                 None => {
                     let error = ParseError::UnexpectedEndOfInput;
                     return Some(Err(error));
                 }
                 Some(Err(error)) => return Some(Err(error)),
-                Some(Ok(rhs)) => {
-                    let start = lhs.range.start;
-                    let end = rhs.range.end;
-                    let range = Range { start, end };
-                    lhs = Expression::binary(operator, lhs, rhs, range);
-                }
-            }
+                Some(Ok(rhs)) => rhs,
+            };
+
+            let start = lhs.range.start;
+            let end = rhs.range.end;
+            let range = Range { start, end };
+            lhs = Expression::binary(operator, lhs, rhs, range);
         }
 
         Some(Ok(lhs))
@@ -275,19 +442,19 @@ impl<'a> Parser<'a> {
 
             self.next_token();
 
-            match self.factor() {
+            let rhs = match self.factor() {
                 None => {
                     let error = ParseError::UnexpectedEndOfInput;
                     return Some(Err(error));
                 }
                 Some(Err(error)) => return Some(Err(error)),
-                Some(Ok(rhs)) => {
-                    let start = lhs.range.start;
-                    let end = rhs.range.end;
-                    let range = Range { start, end };
-                    lhs = Expression::binary(operator, lhs, rhs, range);
-                }
-            }
+                Some(Ok(rhs)) => rhs,
+            };
+
+            let start = lhs.range.start;
+            let end = rhs.range.end;
+            let range = Range { start, end };
+            lhs = Expression::binary(operator, lhs, rhs, range);
         }
 
         Some(Ok(lhs))
@@ -320,19 +487,19 @@ impl<'a> Parser<'a> {
 
             self.next_token();
 
-            match self.unary() {
+            let rhs = match self.unary() {
                 None => {
                     let error = ParseError::UnexpectedEndOfInput;
                     return Some(Err(error));
                 }
                 Some(Err(error)) => return Some(Err(error)),
-                Some(Ok(rhs)) => {
-                    let start = lhs.range.start;
-                    let end = rhs.range.end;
-                    let range = Range { start, end };
-                    lhs = Expression::binary(operator, lhs, rhs, range);
-                }
-            }
+                Some(Ok(rhs)) => rhs,
+            };
+
+            let start = lhs.range.start;
+            let end = rhs.range.end;
+            let range = Range { start, end };
+            lhs = Expression::binary(operator, lhs, rhs, range);
         }
 
         Some(Ok(lhs))
@@ -357,19 +524,19 @@ impl<'a> Parser<'a> {
 
         self.next_token();
 
-        match self.unary() {
+        let rhs = match self.unary() {
             None => {
                 let error = ParseError::UnexpectedEndOfInput;
-                Some(Err(error))
+                return Some(Err(error));
             }
-            Some(Err(error)) => Some(Err(error)),
-            Some(Ok(rhs)) => {
-                let end = rhs.range.end;
-                let range = Range { start, end };
-                let expression = Expression::unary(operator, rhs, range);
-                Some(Ok(expression))
-            }
-        }
+            Some(Err(error)) => return Some(Err(error)),
+            Some(Ok(rhs)) => rhs,
+        };
+
+        let end = rhs.range.end;
+        let range = Range { start, end };
+        let expression = Expression::unary(operator, rhs, range);
+        Some(Ok(expression))
     }
 
     fn primary(&mut self) -> Option<Result<Expression<'a>, ParseError<'a>>> {
@@ -380,6 +547,10 @@ impl<'a> Parser<'a> {
             }
             Ok(token) => token,
         };
+
+        // The early returns above are unreachable when called from `Parser::unary`.
+        // They exist only for correctness should this method ever be called directly,
+        // even though it is not intended to.
 
         match token.kind {
             TokenKind::LParen => {
@@ -406,18 +577,15 @@ impl<'a> Parser<'a> {
                     Some(Ok(token)) => token,
                 };
 
-                match token.kind {
-                    TokenKind::RParen => {
-                        let end = token.range.end;
-                        let range = Range { start, end };
-                        let expression = Expression::grouping(expression, range);
-                        Some(Ok(expression))
-                    }
-                    _ => {
-                        let error = ParseError::UnexpectedToken(token);
-                        Some(Err(error))
-                    }
+                if token.kind != TokenKind::RParen {
+                    let error = ParseError::UnexpectedToken(token);
+                    return Some(Err(error));
                 }
+
+                let end = token.range.end;
+                let range = Range { start, end };
+                let expression = Expression::grouping(expression, range);
+                Some(Ok(expression))
             }
 
             TokenKind::String => {
@@ -662,6 +830,13 @@ impl<'a> Parser<'a> {
                 Some(Ok(expression))
             }
 
+            TokenKind::Identifier => {
+                let name = &self.source()[token.range];
+                let range = token.range;
+                let expression = Expression::variable(name, range);
+                Some(Ok(expression))
+            }
+
             _ => {
                 let error = ParseError::UnexpectedToken(token);
                 Some(Err(error))
@@ -674,7 +849,7 @@ impl<'a> Iterator for Parser<'a> {
     type Item = Result<Statement<'a>, ParseError<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.statement()
+        self.declaration()
     }
 }
 
@@ -683,6 +858,9 @@ pub enum ParseError<'a> {
     LexError(LexError),
     UnexpectedEndOfInput,
     UnexpectedToken(Token),
+    InvalidAssignmentTarget {
+        range: Range<usize>,
+    },
     InvalidEscapeSequence {
         sequence: &'a str,
         range: Range<usize>,

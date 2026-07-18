@@ -9,6 +9,10 @@ pub struct Expression<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'a> {
+    Assignment {
+        name: &'a str,
+        value: Box<Expression<'a>>,
+    },
     Binary {
         operator: BinaryOperator,
         lhs: Box<Expression<'a>>,
@@ -22,6 +26,9 @@ pub enum ExpressionKind<'a> {
         expression: Box<Expression<'a>>,
     },
     Literal(Literal<'a>),
+    Variable {
+        name: &'a str,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -53,6 +60,12 @@ pub enum Literal<'a> {
 }
 
 impl<'a> Expression<'a> {
+    pub fn assignment(name: &'a str, value: Self, range: Range<usize>) -> Self {
+        let value = Box::new(value);
+        let kind = ExpressionKind::Assignment { name, value };
+        Self { kind, range }
+    }
+    
     pub fn binary(operator: BinaryOperator, lhs: Self, rhs: Self, range: Range<usize>) -> Self {
         let lhs = Box::new(lhs);
         let rhs = Box::new(rhs);
@@ -74,6 +87,11 @@ impl<'a> Expression<'a> {
 
     pub fn literal(literal: Literal<'a>, range: Range<usize>) -> Self {
         let kind = ExpressionKind::Literal(literal);
+        Self { kind, range }
+    }
+
+    pub fn variable(name: &'a str, range: Range<usize>) -> Self {
+        let kind = ExpressionKind::Variable { name };
         Self { kind, range }
     }
 }

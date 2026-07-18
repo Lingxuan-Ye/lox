@@ -9,18 +9,35 @@ pub struct Statement<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum StatementKind<'a> {
-    Print(Expression<'a>),
-    Expression(Expression<'a>),
+    VariableDeclaration {
+        name: &'a str,
+        initializer: Option<Expression<'a>>,
+    },
+    Print {
+        expression: Expression<'a>,
+    },
+    Expression {
+        expression: Expression<'a>,
+    },
 }
 
 impl<'a> Statement<'a> {
+    pub fn variable_declaration(
+        name: &'a str,
+        initializer: Option<Expression<'a>>,
+        range: Range<usize>,
+    ) -> Self {
+        let kind = StatementKind::VariableDeclaration { name, initializer };
+        Self { kind, range }
+    }
+
     pub fn print(expression: Expression<'a>, range: Range<usize>) -> Self {
-        let kind = StatementKind::Print(expression);
+        let kind = StatementKind::Print { expression };
         Self { kind, range }
     }
 
     pub fn expression(expression: Expression<'a>, range: Range<usize>) -> Self {
-        let kind = StatementKind::Expression(expression);
+        let kind = StatementKind::Expression { expression };
         Self { kind, range }
     }
 }
