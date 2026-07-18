@@ -73,9 +73,13 @@ impl<'a> Parser<'a> {
             return Some(Err(error));
         };
 
-        let result = match token.kind {
-            TokenKind::Keyword(Keyword::Var) => self.variable_declaration()?,
-            _ => self.statement()?,
+        let option = match token.kind {
+            TokenKind::Keyword(Keyword::Var) => self.variable_declaration(),
+            _ => self.statement(),
+        };
+
+        let Some(result) = option else {
+            unreachable!();
         };
 
         if result.is_err() {
@@ -99,7 +103,7 @@ impl<'a> Parser<'a> {
             return Some(Err(error));
         }
 
-        // The early returns above are unreachable when called from `Parser::statement`.
+        // The early returns above are unreachable when called from `Parser::declaration`.
         // They exist only for correctness should this method ever be called directly,
         // even though it is not intended to.
 
@@ -186,9 +190,67 @@ impl<'a> Parser<'a> {
         };
 
         match token.kind {
+            TokenKind::LBrace => self.block_statement(),
             TokenKind::Keyword(Keyword::Print) => self.print_statement(),
             _ => self.expression_statement(),
         }
+    }
+
+    fn block_statement(&mut self) -> Option<Result<Statement<'a>, ParseError>> {
+        let token = match self.next_token()? {
+            Err(error) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Ok(token) => token,
+        };
+
+        if token.kind != TokenKind::LBrace {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        // The early returns above are unreachable when called from `Parser::statement`.
+        // They exist only for correctness should this method ever be called directly,
+        // even though it is not intended to.
+
+        let start = token.range.start;
+        let end;
+
+        let mut statements = Vec::new();
+
+        loop {
+            let token = match self.peek_token() {
+                None => {
+                    let error = ParseError::UnexpectedEndOfInput;
+                    return Some(Err(error));
+                }
+                Some(Err(_)) => {
+                    let Some(Err(error)) = self.next_token() else {
+                        unreachable!()
+                    };
+                    let error = ParseError::LexError(error);
+                    return Some(Err(error));
+                }
+                Some(Ok(token)) => token,
+            };
+
+            if token.kind == TokenKind::RBrace {
+                end = token.range.end;
+                self.next_token();
+                break;
+            }
+
+            match self.declaration() {
+                None => unreachable!(),
+                Some(Err(error)) => return Some(Err(error)),
+                Some(Ok(statement)) => statements.push(statement),
+            }
+        }
+
+        let range = Range { start, end };
+        let statement = Statement::block(statements, range);
+        Some(Ok(statement))
     }
 
     fn print_statement(&mut self) -> Option<Result<Statement<'a>, ParseError>> {

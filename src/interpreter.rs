@@ -4,12 +4,13 @@ use crate::parser::{ParseError, Parser};
 use crate::statement::{Statement, StatementKind};
 use crate::value::Value;
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::fmt;
 use std::range::Range;
 use std::rc::Rc;
 
 pub struct Interpreter<'a, W> {
-    environment: Environment<'a>,
+    environment: Rc<RefCell<Environment<'a>>>,
     output: W,
 }
 
@@ -18,7 +19,7 @@ where
     W: fmt::Write,
 {
     pub fn new(output: W) -> Self {
-        let environment = Environment::new();
+        let environment = Environment::new().into_shared();
         Self {
             environment,
             output,
@@ -69,6 +70,7 @@ where
             StatementKind::VariableDeclaration { name, initializer } => {
                 self.execute_variable_declaration(name, initializer)
             }
+            StatementKind::Block { statements } => self.execute_block(statements),
             StatementKind::Print { expression } => self.execute_print(expression),
             StatementKind::Expression { expression } => self.execute_expression(expression),
         }
@@ -81,11 +83,24 @@ where
     ) -> Result<(), RuntimeError<'a>> {
         if let Some(initializer) = initializer {
             let value = self.evaluate(initializer)?;
-            self.environment.define(name, value);
+            self.environment.borrow_mut().define(name, value);
         } else {
             let value = Value::Nil;
-            self.environment.define(name, value);
+            self.environment.borrow_mut().define(name, value);
         }
+        Ok(())
+    }
+
+    fn execute_block(&mut self, statements: Vec<Statement<'a>>) -> Result<(), RuntimeError<'a>> {
+        let previous = Rc::clone(&self.environment);
+        self.environment = Environment::with_enclosing(Rc::clone(&previous)).into_shared();
+        for statement in statements {
+            if let Err(error) = self.execute(statement) {
+                self.environment = previous;
+                return Err(error);
+            }
+        }
+        self.environment = previous;
         Ok(())
     }
 
@@ -124,6 +139,7 @@ impl<'a, W> Interpreter<'a, W> {
     ) -> Result<Value<'a>, RuntimeError<'a>> {
         let value = self.evaluate(value)?;
         self.environment
+            .borrow_mut()
             .assign(name, value)
             .map_err(|_| RuntimeError::UndefinedVariable { range })
     }
@@ -363,6 +379,7 @@ impl<'a, W> Interpreter<'a, W> {
         range: Range<usize>,
     ) -> Result<Value<'a>, RuntimeError<'a>> {
         self.environment
+            .borrow()
             .get(name)
             .ok_or(RuntimeError::UndefinedVariable { range })
     }

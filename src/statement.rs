@@ -13,6 +13,9 @@ pub enum StatementKind<'a> {
         name: &'a str,
         initializer: Option<Expression<'a>>,
     },
+    Block {
+        statements: Vec<Statement<'a>>,
+    },
     Print {
         expression: Expression<'a>,
     },
@@ -28,6 +31,11 @@ impl<'a> Statement<'a> {
         range: Range<usize>,
     ) -> Self {
         let kind = StatementKind::VariableDeclaration { name, initializer };
+        Self { kind, range }
+    }
+
+    pub fn block(statements: Vec<Statement<'a>>, range: Range<usize>) -> Self {
+        let kind = StatementKind::Block { statements };
         Self { kind, range }
     }
 
