@@ -404,25 +404,39 @@ mod tests {
         let mut interpreter = Interpreter::new(&mut output);
 
         let source = r#"
-            var a = 1;
-            var b = 2;
-            print a + b;
+            var foo = 1;
+            var bar = 2;
+            var baz;
+
+            foo = bar = 3;
+
+            print foo + bar;
         "#;
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
-        assert_eq!(interpreter.output, "3\n");
+        assert_eq!(interpreter.output, "6\n");
 
-        let source = "a;";
+        let source = "foo;";
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
-        assert_eq!(interpreter.output, "3\n");
+        assert_eq!(interpreter.output, "6\n");
 
-        let source = "c;";
+        let source = "baz;";
         let result = interpreter.interpret(source);
-        let range = Range { start: 0, end: 1 };
-        let error = RuntimeError::UndefinedVariable { name: "c", range };
+        assert!(result.is_ok());
+        assert_eq!(interpreter.output, "6\n");
+
+        let source = "print baz;";
+        let result = interpreter.interpret(source);
+        assert!(result.is_ok());
+        assert_eq!(interpreter.output, "6\nnil\n");
+
+        let source = "qux;";
+        let result = interpreter.interpret(source);
+        let range = Range { start: 0, end: 3 };
+        let error = RuntimeError::UndefinedVariable { name: "qux", range };
         let error = InterpreteError::Runtime(error);
         assert_eq!(result, Err(error));
-        assert_eq!(interpreter.output, "3\n");
+        assert_eq!(interpreter.output, "6\nnil\n");
     }
 }
