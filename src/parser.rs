@@ -78,7 +78,7 @@ impl<'a> Parser<'a> {
             _ => self.statement(),
         };
 
-        let Some(result) = option else { unreachable!() };
+        let result = option.unwrap_or_else(|| unreachable!());
 
         if result.is_err() {
             self.synchronize();
@@ -189,6 +189,7 @@ impl<'a> Parser<'a> {
 
         match token.kind {
             TokenKind::LBrace => self.block_statement(),
+            TokenKind::Keyword(Keyword::If) => self.if_statement(),
             TokenKind::Keyword(Keyword::Print) => self.print_statement(),
             _ => self.expression_statement(),
         }
@@ -249,6 +250,112 @@ impl<'a> Parser<'a> {
         let range = Range { start, end };
         let statement = Statement::block(statements, range);
         Some(Ok(statement))
+    }
+
+    fn if_statement(&mut self) -> Option<Result<Statement<'a>, ParseError>> {
+        let token = match self.next_token()? {
+            Err(error) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Ok(token) => token,
+        };
+
+        if token.kind != TokenKind::Keyword(Keyword::If) {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        // The early returns above are unreachable when called from `Parser::statement`.
+        // They exist only for correctness should this method ever be called directly,
+        // even though it is not intended to.
+
+        let start = token.range.start;
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::LParen {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let condition = match self.expression() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => return Some(Err(error)),
+            Some(Ok(expression)) => expression,
+        };
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::RParen {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let then_branch = match self.statement() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => return Some(Err(error)),
+            Some(Ok(statement)) => statement,
+        };
+
+        match self.peek_token() {
+            Some(Err(_)) => {
+                let Some(Err(error)) = self.next_token() else {
+                    unreachable!()
+                };
+                let error = ParseError::LexError(error);
+                Some(Err(error))
+            }
+            Some(Ok(token)) if token.kind == TokenKind::Keyword(Keyword::Else) => {
+                self.next_token();
+                let else_branch = match self.statement() {
+                    None => {
+                        let error = ParseError::UnexpectedEndOfInput;
+                        return Some(Err(error));
+                    }
+                    Some(Err(error)) => return Some(Err(error)),
+                    Some(Ok(statement)) => statement,
+                };
+                let end = else_branch.range.end;
+                let range = Range { start, end };
+                let else_branch = Some(else_branch);
+                let statement = Statement::if_statement(condition, then_branch, else_branch, range);
+                Some(Ok(statement))
+            }
+            Some(Ok(_)) | None => {
+                let else_branch = None;
+                let end = then_branch.range.end;
+                let range = Range { start, end };
+                let statement = Statement::if_statement(condition, then_branch, else_branch, range);
+                Some(Ok(statement))
+            }
+        }
     }
 
     fn print_statement(&mut self) -> Option<Result<Statement<'a>, ParseError>> {

@@ -97,6 +97,18 @@ where
                 self.environment = previous;
             }
 
+            StatementKind::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                if self.evaluate(condition)?.is_truthy() {
+                    self.execute(*then_branch)?;
+                } else if let Some(else_branch) = else_branch {
+                    self.execute(*else_branch)?;
+                }
+            }
+
             StatementKind::Print { expression } => {
                 let value = self.evaluate(expression)?;
                 writeln!(self.output, "{value}").map_err(RuntimeError::IoError)?;
@@ -376,15 +388,13 @@ mod tests {
         let mut output = Vec::new();
         let mut interpreter = Interpreter::new(&mut output);
 
-        let source = r#"
+        let source = r"
             var foo = 1;
             var bar = 2;
             var baz;
-
             foo = bar = 3;
-
             print foo + bar;
-        "#;
+        ";
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
         assert_eq!(interpreter.output, b"6\n");
@@ -452,5 +462,20 @@ global b
 global c
 "
         );
+
+        interpreter.output.clear();
+
+        let source = r#"
+            var foo = 1;
+            var bar = 2;
+            if (foo == bar) {
+                print "foo == bar";
+            } else {
+                print "foo != bar";
+            }
+        "#;
+        let result = interpreter.interpret(source);
+        assert!(result.is_ok());
+        assert_eq!(interpreter.output, b"foo != bar\n");
     }
 }

@@ -16,6 +16,11 @@ pub enum StatementKind<'a> {
     Block {
         statements: Vec<Statement<'a>>,
     },
+    If {
+        condition: Expression<'a>,
+        then_branch: Box<Statement<'a>>,
+        else_branch: Option<Box<Statement<'a>>>,
+    },
     Print {
         expression: Expression<'a>,
     },
@@ -36,6 +41,22 @@ impl<'a> Statement<'a> {
 
     pub fn block(statements: Vec<Statement<'a>>, range: Range<usize>) -> Self {
         let kind = StatementKind::Block { statements };
+        Self { kind, range }
+    }
+
+    pub fn if_statement(
+        condition: Expression<'a>,
+        then_branch: Statement<'a>,
+        else_branch: Option<Statement<'a>>,
+        range: Range<usize>,
+    ) -> Self {
+        let then_branch = Box::new(then_branch);
+        let else_branch = else_branch.map(Box::new);
+        let kind = StatementKind::If {
+            condition,
+            then_branch,
+            else_branch,
+        };
         Self { kind, range }
     }
 
