@@ -62,5 +62,5 @@ impl<'a> Environment<'a> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct UndefinedVariable;

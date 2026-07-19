@@ -653,193 +653,20 @@ impl<'a> Parser<'a> {
                 let end = token.range.end - 1;
                 let raw_range = Range { start, end };
                 let raw = &self.source()[raw_range];
-
-                let mut string = Cow::Borrowed("");
-                let mut plain_text_range = Range::default();
-
-                loop {
-                    if plain_text_range.end == raw.len() {
-                        let plain_text = &raw[plain_text_range];
-                        match &mut string {
-                            Cow::Borrowed(_) => {
-                                string = Cow::Borrowed(plain_text);
-                            }
-                            Cow::Owned(inner) => {
-                                inner.push_str(plain_text);
-                                inner.shrink_to_fit();
-                            }
-                        }
-                        break;
+                match unescape(raw) {
+                    Err(mut range) => {
+                        range.start += raw_range.start;
+                        range.end += raw_range.start;
+                        let error = ParseError::InvalidEscapeSequence { range };
+                        Some(Err(error))
                     }
-
-                    let remaining = &raw[plain_text_range.end..];
-                    let remaining_bytes = remaining.as_bytes();
-
-                    let byte_0 = remaining_bytes[0];
-                    if byte_0 != b'\\' {
-                        let char_len = byte_0.leading_ones().max(1) as usize;
-                        plain_text_range.end += char_len;
-                        continue;
-                    }
-
-                    let mut commit = |unescaped, len| {
-                        let plain_text = &raw[plain_text_range];
-                        match &mut string {
-                            Cow::Borrowed(_) => {
-                                let inner = format!("{plain_text}{unescaped}");
-                                string = Cow::Owned(inner);
-                            }
-                            Cow::Owned(inner) => {
-                                inner.push_str(plain_text);
-                                inner.push(unescaped);
-                            }
-                        }
-                        plain_text_range.start = plain_text_range.end + len;
-                        plain_text_range.end = plain_text_range.start;
-                    };
-
-                    let byte_1 = remaining_bytes[1];
-                    match byte_1 {
-                        b'0' => commit('\0', 2),
-                        b't' => commit('\t', 2),
-                        b'n' => commit('\n', 2),
-                        b'r' => commit('\r', 2),
-                        b'"' => commit('"', 2),
-                        b'\\' => commit('\\', 2),
-                        b'x' => {
-                            let Some(bytes) = remaining_bytes.get(2..4) else {
-                                let start = raw_range.start + plain_text_range.end;
-                                let end = raw_range.end;
-                                let range = Range { start, end };
-                                let error = ParseError::InvalidEscapeSequence { range };
-                                return Some(Err(error));
-                            };
-                            let mut code = 0;
-                            for (offset, byte) in (2..).zip(bytes) {
-                                match byte {
-                                    b'0'..=b'9' => {
-                                        code = (code << 4) | (byte - b'0');
-                                    }
-                                    b'a'..=b'f' => {
-                                        code = (code << 4) | (byte - b'a' + 10);
-                                    }
-                                    b'A'..=b'F' => {
-                                        code = (code << 4) | (byte - b'A' + 10);
-                                    }
-                                    _ => {
-                                        let char_len = byte.leading_ones().max(1) as usize;
-                                        let len = offset + char_len;
-                                        let start = raw_range.start + plain_text_range.end;
-                                        let end = start + len;
-                                        let range = Range { start, end };
-                                        let error = ParseError::InvalidEscapeSequence { range };
-                                        return Some(Err(error));
-                                    }
-                                }
-                            }
-                            if code > 0x7F {
-                                let start = raw_range.start + plain_text_range.end;
-                                let end = start + 4;
-                                let range = Range { start, end };
-                                let error = ParseError::InvalidEscapeSequence { range };
-                                return Some(Err(error));
-                            }
-                            commit(code as char, 4);
-                        }
-                        b'u' => {
-                            let [byte_2, byte_3, ..] = &remaining_bytes[2..] else {
-                                let start = raw_range.start + plain_text_range.end;
-                                let end = raw_range.end;
-                                let range = Range { start, end };
-                                let error = ParseError::InvalidEscapeSequence { range };
-                                return Some(Err(error));
-                            };
-                            if *byte_2 != b'{' {
-                                let char_len = byte_2.leading_ones().max(1) as usize;
-                                let len = 2 + char_len;
-                                let start = raw_range.start + plain_text_range.end;
-                                let end = start + len;
-                                let range = Range { start, end };
-                                let error = ParseError::InvalidEscapeSequence { range };
-                                return Some(Err(error));
-                            }
-                            let mut code = match byte_3 {
-                                b'0'..=b'9' => (byte_3 - b'0') as u32,
-                                b'a'..=b'f' => (byte_3 - b'a' + 10) as u32,
-                                b'A'..=b'F' => (byte_3 - b'A' + 10) as u32,
-                                _ => {
-                                    let char_len = byte_3.leading_ones().max(1) as usize;
-                                    let len = 3 + char_len;
-                                    let start = raw_range.start + plain_text_range.end;
-                                    let end = start + len;
-                                    let range = Range { start, end };
-                                    let error = ParseError::InvalidEscapeSequence { range };
-                                    return Some(Err(error));
-                                }
-                            };
-                            let mut offset = 4;
-                            loop {
-                                let byte = match remaining_bytes.get(offset) {
-                                    Some(byte) if offset < 10 => byte,
-                                    _ => {
-                                        let start = raw_range.start + plain_text_range.end;
-                                        let end = start + offset;
-                                        let range = Range { start, end };
-                                        let error = ParseError::InvalidEscapeSequence { range };
-                                        return Some(Err(error));
-                                    }
-                                };
-                                match byte {
-                                    b'0'..=b'9' => {
-                                        code = (code << 4) | (byte - b'0') as u32;
-                                    }
-                                    b'a'..=b'f' => {
-                                        code = (code << 4) | (byte - b'a' + 10) as u32;
-                                    }
-                                    b'A'..=b'F' => {
-                                        code = (code << 4) | (byte - b'A' + 10) as u32;
-                                    }
-                                    b'}' => {
-                                        let len = offset + 1;
-                                        let Some(char) = char::from_u32(code) else {
-                                            let start = raw_range.start + plain_text_range.end;
-                                            let end = start + len;
-                                            let range = Range { start, end };
-                                            let error = ParseError::InvalidEscapeSequence { range };
-                                            return Some(Err(error));
-                                        };
-                                        commit(char, len);
-                                        break;
-                                    }
-                                    _ => {
-                                        let char_len = byte.leading_ones().max(1) as usize;
-                                        let len = offset + char_len;
-                                        let start = raw_range.start + plain_text_range.end;
-                                        let end = start + len;
-                                        let range = Range { start, end };
-                                        let error = ParseError::InvalidEscapeSequence { range };
-                                        return Some(Err(error));
-                                    }
-                                }
-                                offset += 1;
-                            }
-                        }
-                        _ => {
-                            let char_len = byte_1.leading_ones().max(1) as usize;
-                            let len = 1 + char_len;
-                            let start = raw_range.start + plain_text_range.end;
-                            let end = start + len;
-                            let range = Range { start, end };
-                            let error = ParseError::InvalidEscapeSequence { range };
-                            return Some(Err(error));
-                        }
+                    Ok(string) => {
+                        let literal = Literal::String(string);
+                        let range = token.range;
+                        let expression = Expression::literal(literal, range);
+                        Some(Ok(expression))
                     }
                 }
-
-                let literal = Literal::String(string);
-                let range = token.range;
-                let expression = Expression::literal(literal, range);
-                Some(Ok(expression))
             }
 
             TokenKind::Number => {
@@ -903,4 +730,306 @@ pub enum ParseError {
     UnexpectedToken(Token),
     InvalidAssignmentTarget { range: Range<usize> },
     InvalidEscapeSequence { range: Range<usize> },
+}
+
+fn unescape(raw: &str) -> Result<Cow<'_, str>, Range<usize>> {
+    let Some(mut cursor) = raw.find('\\') else {
+        let string = Cow::Borrowed(raw);
+        return Ok(string);
+    };
+
+    let raw_len = raw.len();
+    let mut string = String::with_capacity(raw_len);
+
+    let prefix = &raw[..cursor];
+    string.push_str(prefix);
+
+    loop {
+        let remaining = &raw[cursor..];
+        let remaining_bytes = remaining.as_bytes();
+        let Some(byte_1) = remaining_bytes.get(1) else {
+            // This branch is unreachable when called from `Parser::primary`. It exists only
+            // for correctness should this method ever be called directly, even though it is
+            // not intended to.
+            let start = cursor;
+            let end = raw_len;
+            let range = Range { start, end };
+            return Err(range);
+        };
+        let (unescaped, sequence_len) = match byte_1 {
+            b'0' => ('\0', 2),
+            b't' => ('\t', 2),
+            b'n' => ('\n', 2),
+            b'r' => ('\r', 2),
+            b'"' => ('"', 2),
+            b'\\' => ('\\', 2),
+            b'x' => {
+                let Some(bytes) = remaining_bytes.get(2..4) else {
+                    let start = cursor;
+                    let end = raw_len;
+                    let range = Range { start, end };
+                    return Err(range);
+                };
+                let mut code = 0;
+                for (offset, byte) in (2..).zip(bytes) {
+                    match byte {
+                        b'0'..=b'9' => {
+                            code = (code << 4) | (byte - b'0');
+                        }
+                        b'a'..=b'f' => {
+                            code = (code << 4) | (byte - b'a' + 10);
+                        }
+                        b'A'..=b'F' => {
+                            code = (code << 4) | (byte - b'A' + 10);
+                        }
+                        _ => {
+                            let char_len = byte.leading_ones().max(1) as usize;
+                            let start = cursor;
+                            let end = cursor + offset + char_len;
+                            let range = Range { start, end };
+                            return Err(range);
+                        }
+                    }
+                }
+                if code > 0x7F {
+                    let start = cursor;
+                    let end = cursor + 4;
+                    let range = Range { start, end };
+                    return Err(range);
+                }
+                (code as char, 4)
+            }
+            b'u' => {
+                let [byte_2, byte_3, ..] = &remaining_bytes[2..] else {
+                    let start = cursor;
+                    let end = raw_len;
+                    let range = Range { start, end };
+                    return Err(range);
+                };
+                if *byte_2 != b'{' {
+                    let char_len = byte_2.leading_ones().max(1) as usize;
+                    let start = cursor;
+                    let end = cursor + 2 + char_len;
+                    let range = Range { start, end };
+                    return Err(range);
+                }
+                let mut code = match byte_3 {
+                    b'0'..=b'9' => (byte_3 - b'0') as u32,
+                    b'a'..=b'f' => (byte_3 - b'a' + 10) as u32,
+                    b'A'..=b'F' => (byte_3 - b'A' + 10) as u32,
+                    _ => {
+                        let char_len = byte_3.leading_ones().max(1) as usize;
+                        let start = cursor;
+                        let end = cursor + 3 + char_len;
+                        let range = Range { start, end };
+                        return Err(range);
+                    }
+                };
+                let mut offset = 4;
+                loop {
+                    let Some(byte) = remaining_bytes.get(offset) else {
+                        let start = cursor;
+                        let end = raw_len;
+                        let range = Range { start, end };
+                        return Err(range);
+                    };
+                    if offset == 10 {
+                        let char_len = byte.leading_ones().max(1) as usize;
+                        let start = cursor;
+                        let end = cursor + offset + char_len;
+                        let range = Range { start, end };
+                        return Err(range);
+                    }
+                    match byte {
+                        b'0'..=b'9' => {
+                            code = (code << 4) | (byte - b'0') as u32;
+                        }
+                        b'a'..=b'f' => {
+                            code = (code << 4) | (byte - b'a' + 10) as u32;
+                        }
+                        b'A'..=b'F' => {
+                            code = (code << 4) | (byte - b'A' + 10) as u32;
+                        }
+                        b'}' => {
+                            let sequence_len = offset + 1;
+                            let Some(char) = char::from_u32(code) else {
+                                let start = cursor;
+                                let end = cursor + sequence_len;
+                                let range = Range { start, end };
+                                return Err(range);
+                            };
+                            break (char, sequence_len);
+                        }
+                        _ => {
+                            let char_len = byte.leading_ones().max(1) as usize;
+                            let start = cursor;
+                            let end = cursor + offset + char_len;
+                            let range = Range { start, end };
+                            return Err(range);
+                        }
+                    }
+                    offset += 1;
+                }
+            }
+            _ => {
+                let char_len = byte_1.leading_ones().max(1) as usize;
+                let start = cursor;
+                let end = cursor + 1 + char_len;
+                let range = Range { start, end };
+                return Err(range);
+            }
+        };
+
+        let remaining = &remaining[sequence_len..];
+        match remaining.find('\\') {
+            None => {
+                let plain_text = remaining;
+                string.push(unescaped);
+                string.push_str(plain_text);
+                string.shrink_to_fit();
+                let string = Cow::Owned(string);
+                return Ok(string);
+            }
+            Some(offset) => {
+                let plain_text = &remaining[..offset];
+                string.push(unescaped);
+                string.push_str(plain_text);
+                cursor += sequence_len + offset;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unescape() {
+        let raw = "\tHello,\n\tworld!\n";
+        let Ok(Cow::Borrowed(unescaped)) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = raw;
+        assert_eq!(unescaped, expected);
+
+        let raw = r"\tHe\x6c\x6Co,\n\twor\u{006c}d!\n";
+        let Ok(Cow::Owned(unescaped)) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = "\tHello,\n\tworld!\n";
+        assert_eq!(unescaped, expected);
+
+        let raw = r"\\";
+        let Ok(Cow::Owned(unescaped)) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = "\\";
+        assert_eq!(unescaped, expected);
+
+        let raw = r"\";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 1 };
+        assert_eq!(range, expected);
+
+        let raw = r"\x";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 2 };
+        assert_eq!(range, expected);
+
+        let raw = r"\x0";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 3 };
+        assert_eq!(range, expected);
+
+        let raw = r"\x0文";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 6 };
+        assert_eq!(range, expected);
+
+        let raw = r"\xFF";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 4 };
+        assert_eq!(range, expected);
+
+        let raw = r"\x000";
+        let Ok(Cow::Owned(unescaped)) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = "\x000";
+        assert_eq!(unescaped, expected);
+
+        let raw = r"\u";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 2 };
+        assert_eq!(range, expected);
+
+        let raw = r"\u文";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 5 };
+        assert_eq!(range, expected);
+
+        let raw = r"\u{";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 3 };
+        assert_eq!(range, expected);
+
+        let raw = r"\u{0";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 4 };
+        assert_eq!(range, expected);
+
+        let raw = r"\u{0文";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 7 };
+        assert_eq!(range, expected);
+
+        let raw = r"\u{6587}";
+        let Ok(Cow::Owned(unescaped)) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = "文";
+        assert_eq!(unescaped, expected);
+
+        let raw = r"\u{006587}";
+        let Ok(Cow::Owned(unescaped)) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = "文";
+        assert_eq!(unescaped, expected);
+
+        let raw = r"\u{0006587}";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 11 };
+        assert_eq!(range, expected);
+
+        let raw = r"\u{110000}";
+        let Err(range) = unescape(raw) else {
+            unreachable!()
+        };
+        let expected = Range { start: 0, end: 10 };
+        assert_eq!(range, expected);
+    }
 }
