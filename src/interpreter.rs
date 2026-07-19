@@ -1,4 +1,4 @@
-pub use self::value::{StringValue, Value};
+pub use self::value::Value;
 
 use self::environment::Environment;
 use crate::ast::expression::{
@@ -6,7 +6,6 @@ use crate::ast::expression::{
 };
 use crate::ast::statement::{Statement, StatementKind};
 use crate::parser::{ParseError, Parser};
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::io;
 use std::range::Range;
@@ -162,44 +161,7 @@ where
                             Ok(value)
                         }
                         (Value::String(lhs), Value::String(rhs)) => {
-                            if Rc::ptr_eq(&lhs.0, &rhs.0) {
-                                let borrow = lhs.0.borrow();
-                                if borrow.is_empty() {
-                                    drop(borrow);
-                                    let value = Value::String(lhs);
-                                    return Ok(value);
-                                }
-                                let string = borrow.repeat(2);
-                                let value = Value::from(string);
-                                return Ok(value);
-                            }
-                            let lhs_count = Rc::strong_count(&lhs.0);
-                            let mut lhs_borrow = lhs.0.borrow_mut();
-                            let rhs_borrow = rhs.0.borrow();
-                            if lhs_borrow.is_empty() {
-                                drop(rhs_borrow);
-                                let value = Value::String(rhs);
-                                return Ok(value);
-                            }
-                            if rhs_borrow.is_empty() {
-                                drop(lhs_borrow);
-                                let value = Value::String(lhs);
-                                return Ok(value);
-                            }
-                            if let Cow::Owned(lhs_inner) = &mut *lhs_borrow
-                                && lhs_count == 1
-                            {
-                                lhs_inner.push_str(&rhs_borrow);
-                                drop(lhs_borrow);
-                                let value = Value::String(lhs);
-                                return Ok(value);
-                            }
-                            let lhs_len = lhs_borrow.len();
-                            let rhs_len = rhs_borrow.len();
-                            let mut string = String::with_capacity(lhs_len + rhs_len);
-                            string.push_str(&lhs_borrow);
-                            string.push_str(&rhs_borrow);
-                            let value = Value::from(string);
+                            let value = Value::String(lhs + rhs);
                             Ok(value)
                         }
                         (lhs, rhs) => {
@@ -363,7 +325,7 @@ where
 
             ExpressionKind::Literal(literal) => {
                 let value = match literal {
-                    Literal::String(string) => Value::from(string),
+                    Literal::String(string) => Value::String(string),
                     Literal::Number(number) => Value::Number(number),
                     Literal::Boolean(boolean) => Value::Boolean(boolean),
                     Literal::Nil => Value::Nil,
@@ -512,7 +474,9 @@ global c
         "#;
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
-        assert_eq!(interpreter.output, b"\
+        assert_eq!(
+            interpreter.output,
+            b"\
 nil
 yes
 true
@@ -521,6 +485,7 @@ nil
 nil
 false
 true
-");
+"
+        );
     }
 }

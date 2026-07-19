@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use crate::string::LoxString;
 use std::range::Range;
 
 #[derive(Debug, PartialEq)]
@@ -64,7 +64,7 @@ pub enum UnaryOperator {
 
 #[derive(Debug, PartialEq)]
 pub enum Literal<'a> {
-    String(Cow<'a, str>),
+    String(LoxString<'a>),
     Number(f64),
     Boolean(bool),
     Nil,
