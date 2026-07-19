@@ -74,8 +74,7 @@ where
     W: io::Write,
 {
     fn execute(&mut self, statement: &Statement<'a>) -> Result<(), RuntimeError<'a>> {
-        let Statement { kind, .. } = statement;
-        match kind {
+        match &statement.kind {
             StatementKind::VariableDeclaration { name, initializer } => {
                 if let Some(initializer) = initializer {
                     let value = self.evaluate(initializer)?;
@@ -96,6 +95,12 @@ where
                     }
                 }
                 self.environment = previous;
+            }
+
+            StatementKind::While { condition, body } => {
+                while self.evaluate(condition)?.is_truthy() {
+                    self.execute(body)?;
+                }
             }
 
             StatementKind::If {

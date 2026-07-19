@@ -21,6 +21,10 @@ pub enum StatementKind<'a> {
         then_branch: Box<Statement<'a>>,
         else_branch: Option<Box<Statement<'a>>>,
     },
+    While {
+        condition: Expression<'a>,
+        body: Box<Statement<'a>>,
+    },
     Print {
         expression: Expression<'a>,
     },
@@ -57,6 +61,16 @@ impl<'a> Statement<'a> {
             then_branch,
             else_branch,
         };
+        Self { kind, range }
+    }
+
+    pub fn while_statement(
+        condition: Expression<'a>,
+        body: Statement<'a>,
+        range: Range<usize>,
+    ) -> Self {
+        let body = Box::new(body);
+        let kind = StatementKind::While { condition, body };
         Self { kind, range }
     }
 
