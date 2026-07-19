@@ -25,10 +25,10 @@ pub enum ExpressionKind<'a> {
     Grouping {
         expression: Box<Expression<'a>>,
     },
-    Literal(Literal<'a>),
     Variable {
         name: &'a str,
     },
+    Literal(Literal<'a>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -85,13 +85,13 @@ impl<'a> Expression<'a> {
         Self { kind, range }
     }
 
-    pub fn literal(literal: Literal<'a>, range: Range<usize>) -> Self {
-        let kind = ExpressionKind::Literal(literal);
+    pub fn variable(name: &'a str, range: Range<usize>) -> Self {
+        let kind = ExpressionKind::Variable { name };
         Self { kind, range }
     }
 
-    pub fn variable(name: &'a str, range: Range<usize>) -> Self {
-        let kind = ExpressionKind::Variable { name };
+    pub fn literal(literal: Literal<'a>, range: Range<usize>) -> Self {
+        let kind = ExpressionKind::Literal(literal);
         Self { kind, range }
     }
 }

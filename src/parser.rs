@@ -648,6 +648,13 @@ impl<'a> Parser<'a> {
                 Some(Ok(expression))
             }
 
+            TokenKind::Identifier => {
+                let name = &self.source()[token.range];
+                let range = token.range;
+                let expression = Expression::variable(name, range);
+                Some(Ok(expression))
+            }
+
             TokenKind::String => {
                 let start = token.range.start + 1;
                 let end = token.range.end - 1;
@@ -697,13 +704,6 @@ impl<'a> Parser<'a> {
                 let literal = Literal::Nil;
                 let range = token.range;
                 let expression = Expression::literal(literal, range);
-                Some(Ok(expression))
-            }
-
-            TokenKind::Identifier => {
-                let name = &self.source()[token.range];
-                let range = token.range;
-                let expression = Expression::variable(name, range);
                 Some(Ok(expression))
             }
 
