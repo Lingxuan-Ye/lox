@@ -36,13 +36,13 @@ pub enum ExpressionKind<'a> {
     Literal(Literal<'a>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogicalOperator {
     And,
     Or,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinaryOperator {
     Add,
     Sub,
@@ -56,7 +56,7 @@ pub enum BinaryOperator {
     NotEqual,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnaryOperator {
     Neg,
     Not,

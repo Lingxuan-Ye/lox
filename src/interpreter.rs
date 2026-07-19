@@ -58,7 +58,7 @@ where
             }
         }
 
-        for statement in statements {
+        for statement in &statements {
             if let Err(error) = self.execute(statement) {
                 let error = InterpreteError::Runtime(error);
                 return Err(error);
@@ -73,7 +73,7 @@ impl<'a, W> Interpreter<'a, W>
 where
     W: io::Write,
 {
-    fn execute(&mut self, statement: Statement<'a>) -> Result<(), RuntimeError<'a>> {
+    fn execute(&mut self, statement: &Statement<'a>) -> Result<(), RuntimeError<'a>> {
         let Statement { kind, .. } = statement;
         match kind {
             StatementKind::VariableDeclaration { name, initializer } => {
@@ -104,9 +104,9 @@ where
                 else_branch,
             } => {
                 if self.evaluate(condition)?.is_truthy() {
-                    self.execute(*then_branch)?;
+                    self.execute(then_branch)?;
                 } else if let Some(else_branch) = else_branch {
-                    self.execute(*else_branch)?;
+                    self.execute(else_branch)?;
                 }
             }
 
@@ -122,11 +122,11 @@ where
         Ok(())
     }
 
-    fn evaluate(&mut self, expression: Expression<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
-        let Expression { kind, range } = expression;
-        match kind {
+    fn evaluate(&mut self, expression: &Expression<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
+        let range = expression.range;
+        match &expression.kind {
             ExpressionKind::Logical { operator, lhs, rhs } => {
-                let lhs = self.evaluate(*lhs)?;
+                let lhs = self.evaluate(lhs)?;
                 match operator {
                     LogicalOperator::And => {
                         if !lhs.is_truthy() {
@@ -139,12 +139,12 @@ where
                         }
                     }
                 }
-                let rhs = self.evaluate(*rhs)?;
+                let rhs = self.evaluate(rhs)?;
                 Ok(rhs)
             }
 
             ExpressionKind::Assignment { name, value } => {
-                let value = self.evaluate(*value)?;
+                let value = self.evaluate(value)?;
                 self.environment
                     .borrow_mut()
                     .assign(name, value)
@@ -152,8 +152,9 @@ where
             }
 
             ExpressionKind::Binary { operator, lhs, rhs } => {
-                let lhs = self.evaluate(*lhs)?;
-                let rhs = self.evaluate(*rhs)?;
+                let lhs = self.evaluate(lhs)?;
+                let rhs = self.evaluate(rhs)?;
+                let operator = *operator;
                 match operator {
                     BinaryOperator::Add => match (lhs, rhs) {
                         (Value::Number(lhs), Value::Number(rhs)) => {
@@ -291,7 +292,8 @@ where
             }
 
             ExpressionKind::Unary { operator, rhs } => {
-                let rhs = self.evaluate(*rhs)?;
+                let rhs = self.evaluate(rhs)?;
+                let operator = *operator;
                 match operator {
                     UnaryOperator::Neg => match rhs {
                         Value::Number(number) => {
@@ -315,7 +317,7 @@ where
                 }
             }
 
-            ExpressionKind::Grouping { expression } => self.evaluate(*expression),
+            ExpressionKind::Grouping { expression } => self.evaluate(expression),
 
             ExpressionKind::Variable { name } => self
                 .environment
@@ -325,9 +327,9 @@ where
 
             ExpressionKind::Literal(literal) => {
                 let value = match literal {
-                    Literal::String(string) => Value::String(string),
-                    Literal::Number(number) => Value::Number(number),
-                    Literal::Boolean(boolean) => Value::Boolean(boolean),
+                    Literal::String(string) => Value::String(string.clone()),
+                    Literal::Number(number) => Value::Number(*number),
+                    Literal::Boolean(boolean) => Value::Boolean(*boolean),
                     Literal::Nil => Value::Nil,
                 };
                 Ok(value)
