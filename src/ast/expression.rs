@@ -9,6 +9,11 @@ pub struct Expression<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionKind<'a> {
+    Logical {
+        operator: LogicalOperator,
+        lhs: Box<Expression<'a>>,
+        rhs: Box<Expression<'a>>,
+    },
     Assignment {
         name: &'a str,
         value: Box<Expression<'a>>,
@@ -29,6 +34,12 @@ pub enum ExpressionKind<'a> {
         name: &'a str,
     },
     Literal(Literal<'a>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum LogicalOperator {
+    And,
+    Or,
 }
 
 #[derive(Debug, PartialEq)]
@@ -60,6 +71,13 @@ pub enum Literal<'a> {
 }
 
 impl<'a> Expression<'a> {
+    pub fn logical(operator: LogicalOperator, lhs: Self, rhs: Self, range: Range<usize>) -> Self {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        let kind = ExpressionKind::Logical { operator, lhs, rhs };
+        Self { kind, range }
+    }
+
     pub fn assignment(name: &'a str, value: Self, range: Range<usize>) -> Self {
         let value = Box::new(value);
         let kind = ExpressionKind::Assignment { name, value };

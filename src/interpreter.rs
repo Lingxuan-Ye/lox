@@ -1,7 +1,9 @@
 pub use self::value::{StringValue, Value};
 
 use self::environment::Environment;
-use crate::ast::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
+use crate::ast::expression::{
+    BinaryOperator, Expression, ExpressionKind, Literal, LogicalOperator, UnaryOperator,
+};
 use crate::ast::statement::{Statement, StatementKind};
 use crate::parser::{ParseError, Parser};
 use std::borrow::Cow;
@@ -124,6 +126,24 @@ where
     fn evaluate(&mut self, expression: Expression<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         let Expression { kind, range } = expression;
         match kind {
+            ExpressionKind::Logical { operator, lhs, rhs } => {
+                let lhs = self.evaluate(*lhs)?;
+                match operator {
+                    LogicalOperator::And => {
+                        if !lhs.is_truthy() {
+                            return Ok(lhs);
+                        }
+                    }
+                    LogicalOperator::Or => {
+                        if lhs.is_truthy() {
+                            return Ok(lhs);
+                        }
+                    }
+                }
+                let rhs = self.evaluate(*rhs)?;
+                Ok(rhs)
+            }
+
             ExpressionKind::Assignment { name, value } => {
                 let value = self.evaluate(*value)?;
                 self.environment
@@ -477,5 +497,30 @@ global c
         let result = interpreter.interpret(source);
         assert!(result.is_ok());
         assert_eq!(interpreter.output, b"foo != bar\n");
+
+        interpreter.output.clear();
+
+        let source = r#"
+            print false or nil;
+            print false or "yes";
+            print true or nil;
+            print true or "yes";
+            print nil and false;
+            print nil and true;
+            print "yes" and false;
+            print "yes" and true;
+        "#;
+        let result = interpreter.interpret(source);
+        assert!(result.is_ok());
+        assert_eq!(interpreter.output, b"\
+nil
+yes
+true
+true
+nil
+nil
+false
+true
+");
     }
 }

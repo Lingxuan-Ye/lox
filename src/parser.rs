@@ -1,4 +1,6 @@
-use crate::ast::expression::{BinaryOperator, Expression, ExpressionKind, Literal, UnaryOperator};
+use crate::ast::expression::{
+    BinaryOperator, Expression, ExpressionKind, Literal, LogicalOperator, UnaryOperator,
+};
 use crate::ast::statement::Statement;
 use crate::lexer::{LexError, Lexer};
 use crate::token::{Keyword, Token, TokenKind};
@@ -445,7 +447,7 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
-        let lhs = match self.equality()? {
+        let lhs = match self.or()? {
             Err(error) => return Some(Err(error)),
             Ok(expression) => expression,
         };
@@ -488,6 +490,94 @@ impl<'a> Parser<'a> {
         let range = Range { start, end };
         let expression = Expression::assignment(name, value, range);
         Some(Ok(expression))
+    }
+
+    fn or(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
+        let mut lhs = match self.and()? {
+            Err(error) => return Some(Err(error)),
+            Ok(expression) => expression,
+        };
+
+        loop {
+            let token = match self.peek_token() {
+                None => break,
+                Some(Err(_)) => {
+                    let Some(Err(error)) = self.next_token() else {
+                        unreachable!()
+                    };
+                    let error = ParseError::LexError(error);
+                    return Some(Err(error));
+                }
+                Some(Ok(token)) => token,
+            };
+
+            let operator = match token.kind {
+                TokenKind::Keyword(Keyword::Or) => LogicalOperator::Or,
+                _ => break,
+            };
+
+            self.next_token();
+
+            let rhs = match self.term() {
+                None => {
+                    let error = ParseError::UnexpectedEndOfInput;
+                    return Some(Err(error));
+                }
+                Some(Err(error)) => return Some(Err(error)),
+                Some(Ok(rhs)) => rhs,
+            };
+
+            let start = lhs.range.start;
+            let end = rhs.range.end;
+            let range = Range { start, end };
+            lhs = Expression::logical(operator, lhs, rhs, range);
+        }
+
+        Some(Ok(lhs))
+    }
+
+    fn and(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
+        let mut lhs = match self.equality()? {
+            Err(error) => return Some(Err(error)),
+            Ok(expression) => expression,
+        };
+
+        loop {
+            let token = match self.peek_token() {
+                None => break,
+                Some(Err(_)) => {
+                    let Some(Err(error)) = self.next_token() else {
+                        unreachable!()
+                    };
+                    let error = ParseError::LexError(error);
+                    return Some(Err(error));
+                }
+                Some(Ok(token)) => token,
+            };
+
+            let operator = match token.kind {
+                TokenKind::Keyword(Keyword::And) => LogicalOperator::And,
+                _ => break,
+            };
+
+            self.next_token();
+
+            let rhs = match self.term() {
+                None => {
+                    let error = ParseError::UnexpectedEndOfInput;
+                    return Some(Err(error));
+                }
+                Some(Err(error)) => return Some(Err(error)),
+                Some(Ok(rhs)) => rhs,
+            };
+
+            let start = lhs.range.start;
+            let end = rhs.range.end;
+            let range = Range { start, end };
+            lhs = Expression::logical(operator, lhs, rhs, range);
+        }
+
+        Some(Ok(lhs))
     }
 
     fn equality(&mut self) -> Option<Result<Expression<'a>, ParseError>> {
