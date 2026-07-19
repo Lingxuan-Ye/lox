@@ -35,7 +35,7 @@ where
         self.output.flush()
     }
 
-    pub fn interpret(&mut self, source: &'a str) -> Result<(), InterpreteError<'a>> {
+    pub fn interpret(&mut self, source: &'a str) -> Result<(), InterpretError<'a>> {
         let mut parser = Parser::new(source);
         let mut statements = Vec::new();
 
@@ -49,7 +49,7 @@ where
                             errors.push(error);
                         }
                     }
-                    let error = InterpreteError::Parse(errors);
+                    let error = InterpretError::Parse(errors);
                     return Err(error);
                 }
                 Ok(statement) => {
@@ -60,7 +60,7 @@ where
 
         for statement in &statements {
             if let Err(error) = self.execute(statement) {
-                let error = InterpreteError::Runtime(error);
+                let error = InterpretError::Runtime(error);
                 return Err(error);
             }
         }
@@ -339,7 +339,7 @@ where
 }
 
 #[derive(Debug)]
-pub enum InterpreteError<'a> {
+pub enum InterpretError<'a> {
     Parse(Vec<ParseError>),
     Runtime(RuntimeError<'a>),
 }
@@ -400,8 +400,7 @@ mod tests {
 
         let source = "qux;";
         let result = interpreter.interpret(source);
-        let Err(InterpreteError::Runtime(RuntimeError::UndefinedVariable { range })) = result
-        else {
+        let Err(InterpretError::Runtime(RuntimeError::UndefinedVariable { range })) = result else {
             unreachable!()
         };
         assert_eq!(range, Range { start: 0, end: 3 });
