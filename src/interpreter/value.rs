@@ -12,21 +12,21 @@ pub enum Value<'a> {
 impl Value<'_> {
     pub fn is_truthy(&self) -> bool {
         match self {
-            Value::Boolean(boolean) => *boolean,
-            Value::Nil => false,
+            Self::Boolean(boolean) => *boolean,
+            Self::Nil => false,
             _ => true,
         }
     }
 
     pub fn promote(self) -> Value<'static> {
         match self {
-            Value::String(string) => {
+            Self::String(string) => {
                 let string = string.into_shared();
                 Value::String(string)
             }
-            Value::Number(number) => Value::Number(number),
-            Value::Boolean(boolean) => Value::Boolean(boolean),
-            Value::Nil => Value::Nil,
+            Self::Number(number) => Value::Number(number),
+            Self::Boolean(boolean) => Value::Boolean(boolean),
+            Self::Nil => Value::Nil,
         }
     }
 }
@@ -34,10 +34,10 @@ impl Value<'_> {
 impl fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::String(string) => string.fmt(f),
-            Value::Number(number) => number.fmt(f),
-            Value::Boolean(boolean) => boolean.fmt(f),
-            Value::Nil => f.write_str("nil"),
+            Self::String(string) => string.fmt(f),
+            Self::Number(number) => number.fmt(f),
+            Self::Boolean(boolean) => boolean.fmt(f),
+            Self::Nil => f.write_str("nil"),
         }
     }
 }
