@@ -186,15 +186,34 @@ impl<'a> LoxString<'a> {
         }
     }
 
+    pub fn is_borrowed(&self) -> bool {
+        matches!(self.repr, Repr::Borrowed(_))
+    }
+
+    pub fn is_shared(&self) -> bool {
+        matches!(self.repr, Repr::Shared(_))
+    }
+
+    pub fn into_shared(self) -> LoxString<'static> {
+        match self.repr {
+            Repr::Borrowed(string) => {
+                let bytes = string.as_bytes();
+                let bytes = Rc::from(bytes);
+                let repr = Repr::Shared(bytes);
+                LoxString { repr }
+            }
+            Repr::Shared(bytes) => {
+                let repr = Repr::Shared(bytes);
+                LoxString { repr }
+            }
+        }
+    }
+
     pub fn as_str(&self) -> &str {
         match &self.repr {
             Repr::Borrowed(string) => string,
             Repr::Shared(bytes) => unsafe { str::from_utf8_unchecked(bytes) },
         }
-    }
-
-    fn is_borrowed(&self) -> bool {
-        matches!(self.repr, Repr::Borrowed(_))
     }
 }
 
@@ -521,7 +540,7 @@ mod tests {
         let output = lhs + rhs;
         let expected = "rhs";
         assert_eq!(output, expected);
-        assert!(!output.is_borrowed());
+        assert!(output.is_shared());
 
         let lhs = String::from(EMPTY);
         let lhs = LoxString::from(lhs);
@@ -538,7 +557,7 @@ mod tests {
         let output = lhs + rhs;
         let expected = "rhs";
         assert_eq!(output, expected);
-        assert!(!output.is_borrowed());
+        assert!(output.is_shared());
 
         let lhs = LoxString::from("lhs");
         let rhs = LoxString::from(EMPTY);
@@ -561,7 +580,7 @@ mod tests {
         let output = lhs + rhs;
         let expected = "lhs";
         assert_eq!(output, expected);
-        assert!(!output.is_borrowed());
+        assert!(output.is_shared());
 
         let lhs = String::from("lhs");
         let lhs = LoxString::from(lhs);
@@ -570,14 +589,14 @@ mod tests {
         let output = lhs + rhs;
         let expected = "lhs";
         assert_eq!(output, expected);
-        assert!(!output.is_borrowed());
+        assert!(output.is_shared());
 
         let lhs = LoxString::from("lhs");
         let rhs = LoxString::from("rhs");
         let output = lhs + rhs;
         let expected = "lhsrhs";
         assert_eq!(output, expected);
-        assert!(!output.is_borrowed());
+        assert!(output.is_shared());
 
         let lhs = LoxString::from("lhs");
         let rhs = String::from("rhs");
@@ -585,7 +604,7 @@ mod tests {
         let output = lhs + rhs;
         let expected = "lhsrhs";
         assert_eq!(output, expected);
-        assert!(!output.is_borrowed());
+        assert!(output.is_shared());
 
         let lhs = String::from("lhs");
         let lhs = LoxString::from(lhs);
@@ -593,7 +612,7 @@ mod tests {
         let output = lhs + rhs;
         let expected = "lhsrhs";
         assert_eq!(output, expected);
-        assert!(!output.is_borrowed());
+        assert!(output.is_shared());
 
         let lhs = String::from("lhs");
         let lhs = LoxString::from(lhs);
@@ -602,6 +621,6 @@ mod tests {
         let output = lhs + rhs;
         let expected = "lhsrhs";
         assert_eq!(output, expected);
-        assert!(!output.is_borrowed());
+        assert!(output.is_shared());
     }
 }
