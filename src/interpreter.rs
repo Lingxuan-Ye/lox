@@ -14,6 +14,7 @@ use std::rc::Rc;
 mod environment;
 mod value;
 
+#[derive(Debug)]
 pub struct Interpreter<'a, W> {
     environment: Rc<RefCell<Environment<'a>>>,
     output: W,
