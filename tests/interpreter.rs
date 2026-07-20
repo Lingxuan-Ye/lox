@@ -44,7 +44,7 @@ fn test_interpreter() -> io::Result<()> {
         let mut output = Vec::new();
         let mut interpreter = Interpreter::new(&mut output);
         interpreter.interpret(&input).unwrap();
-        let output = std::str::from_utf8(&output).unwrap();
+        let output = str::from_utf8(&output).unwrap();
         let expected = case
             .output
             .as_ref()
