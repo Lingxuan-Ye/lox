@@ -37,44 +37,15 @@ where
     }
 
     pub fn interpret(&mut self, source: &'a str) -> Result<(), InterpretError<'a>> {
-        let mut parser = Parser::new(source);
-        let mut statements = Vec::new();
-
-        while let Some(result) = parser.next() {
-            match result {
-                Err(error) => {
-                    let mut errors = Vec::new();
-                    errors.push(error);
-                    for result in parser {
-                        if let Err(error) = result {
-                            errors.push(error);
-                        }
-                    }
-                    let error = InterpretError::Parse(errors);
-                    return Err(error);
-                }
-                Ok(statement) => {
-                    statements.push(statement);
-                }
-            }
-        }
-
+        let parser = Parser::new(source);
+        let statements = parser.parse().map_err(InterpretError::Parse)?;
         for statement in &statements {
-            if let Err(error) = self.execute(statement) {
-                let error = InterpretError::Runtime(error);
-                return Err(error);
-            }
+            self.execute(statement).map_err(InterpretError::Runtime)?;
         }
-
         Ok(())
     }
-}
 
-impl<'a, W> Interpreter<'a, W>
-where
-    W: io::Write,
-{
-    fn execute(&mut self, statement: &Statement<'a>) -> Result<(), RuntimeError<'a>> {
+    pub fn execute(&mut self, statement: &Statement<'a>) -> Result<(), RuntimeError<'a>> {
         match &statement.kind {
             StatementKind::VariableDeclaration { name, initializer } => {
                 if let Some(initializer) = initializer {
@@ -128,7 +99,7 @@ where
         Ok(())
     }
 
-    fn evaluate(&mut self, expression: &Expression<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
+    pub fn evaluate(&mut self, expression: &Expression<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         let range = expression.range;
         match &expression.kind {
             ExpressionKind::Logical { operator, lhs, rhs } => {

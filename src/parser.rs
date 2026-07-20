@@ -24,6 +24,24 @@ impl<'a> Parser<'a> {
         self.lexer.source()
     }
 
+    pub fn parse(mut self) -> Result<Vec<Statement<'a>>, Vec<ParseError>> {
+        let mut statements = Vec::new();
+        while let Some(result) = self.next() {
+            match result {
+                Err(error) => {
+                    let mut errors = Vec::new();
+                    errors.push(error);
+                    errors.extend(self.filter_map(Result::err));
+                    return Err(errors);
+                }
+                Ok(statement) => {
+                    statements.push(statement);
+                }
+            }
+        }
+        Ok(statements)
+    }
+
     fn synchronize(&mut self) {
         while let Some(token) = self.peek_token() {
             match token {
