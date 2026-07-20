@@ -207,6 +207,7 @@ impl<'a> Parser<'a> {
             TokenKind::LBrace => self.block_statement(),
             TokenKind::Keyword(Keyword::If) => self.if_statement(),
             TokenKind::Keyword(Keyword::While) => self.while_statement(),
+            TokenKind::Keyword(Keyword::For) => self.for_statement(),
             TokenKind::Keyword(Keyword::Print) => self.print_statement(),
             _ => self.expression_statement(),
         }
@@ -435,6 +436,175 @@ impl<'a> Parser<'a> {
         };
 
         let statement = Statement::while_statement(condition, body);
+        Some(Ok(statement))
+    }
+
+    fn for_statement(&mut self) -> Option<Result<Statement<'a>, ParseError>> {
+        let token = match self.next_token()? {
+            Err(error) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Ok(token) => token,
+        };
+
+        if token.kind != TokenKind::Keyword(Keyword::For) {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        // The early returns above are unreachable when called from `Parser::statement`.
+        // They exist only for correctness should this method ever be called directly,
+        // even though it is not intended to.
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::LParen {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let token = match self.peek_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(_)) => {
+                let Some(Err(error)) = self.next_token() else {
+                    unreachable!()
+                };
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        let initializer = match token.kind {
+            TokenKind::Semicolon => None,
+            TokenKind::Keyword(Keyword::Var) => self.variable_declaration(),
+            _ => self.expression_statement(),
+        };
+
+        let initializer = match initializer {
+            None => None,
+            Some(Err(error)) => return Some(Err(error)),
+            Some(Ok(statement)) => Some(statement),
+        };
+
+        let token = match self.peek_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(_)) => {
+                let Some(Err(error)) = self.next_token() else {
+                    unreachable!()
+                };
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        let condition = if token.kind == TokenKind::Semicolon {
+            let literal = Literal::Boolean(true);
+            let range = token.range;
+            Expression::literal(literal, range)
+        } else {
+            match self.expression() {
+                None => unreachable!(),
+                Some(Err(error)) => return Some(Err(error)),
+                Some(Ok(expression)) => expression,
+            }
+        };
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::Semicolon {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let token = match self.peek_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(_)) => {
+                let Some(Err(error)) = self.next_token() else {
+                    unreachable!()
+                };
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        let increment = if token.kind == TokenKind::RParen {
+            None
+        } else {
+            match self.expression() {
+                None => unreachable!(),
+                Some(Err(error)) => return Some(Err(error)),
+                Some(Ok(expression)) => Some(expression),
+            }
+        };
+
+        let token = match self.next_token() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => {
+                let error = ParseError::LexError(error);
+                return Some(Err(error));
+            }
+            Some(Ok(token)) => token,
+        };
+
+        if token.kind != TokenKind::RParen {
+            let error = ParseError::UnexpectedToken(token);
+            return Some(Err(error));
+        }
+
+        let body = match self.statement() {
+            None => {
+                let error = ParseError::UnexpectedEndOfInput;
+                return Some(Err(error));
+            }
+            Some(Err(error)) => return Some(Err(error)),
+            Some(Ok(statement)) => statement,
+        };
+
+        let mut statement = body;
+        if let Some(increment) = increment {
+            statement = Statement::block(vec![statement, Statement::expression(increment)]);
+        }
+        statement = Statement::while_statement(condition, statement);
+        if let Some(initializer) = initializer {
+            statement = Statement::block(vec![initializer, statement]);
+        }
+
         Some(Ok(statement))
     }
 
