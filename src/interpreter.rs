@@ -4,7 +4,7 @@ use self::environment::Environment;
 use crate::ast::expression::{
     BinaryOperator, Expression, ExpressionKind, Literal, LogicalOperator, UnaryOperator,
 };
-use crate::ast::statement::{Statement, StatementKind};
+use crate::ast::statement::Statement;
 use crate::parser::{ParseError, Parser};
 use std::cell::RefCell;
 use std::io;
@@ -46,8 +46,8 @@ where
     }
 
     pub fn execute(&mut self, statement: &Statement<'a>) -> Result<(), RuntimeError<'a>> {
-        match &statement.kind {
-            StatementKind::VariableDeclaration { name, initializer } => {
+        match statement {
+            Statement::VariableDeclaration { name, initializer } => {
                 if let Some(initializer) = initializer {
                     let value = self.evaluate(initializer)?;
                     self.environment.borrow_mut().define(name, value);
@@ -57,7 +57,7 @@ where
                 }
             }
 
-            StatementKind::Block { statements } => {
+            Statement::Block { statements } => {
                 let previous = Rc::clone(&self.environment);
                 self.environment = Environment::with_enclosing(Rc::clone(&previous)).into_shared();
                 for statement in statements {
@@ -69,13 +69,13 @@ where
                 self.environment = previous;
             }
 
-            StatementKind::While { condition, body } => {
+            Statement::While { condition, body } => {
                 while self.evaluate(condition)?.is_truthy() {
                     self.execute(body)?;
                 }
             }
 
-            StatementKind::If {
+            Statement::If {
                 condition,
                 then_branch,
                 else_branch,
@@ -87,12 +87,12 @@ where
                 }
             }
 
-            StatementKind::Print { expression } => {
+            Statement::Print { expression } => {
                 let value = self.evaluate(expression)?;
                 writeln!(self.output, "{value}").map_err(RuntimeError::IoError)?;
             }
 
-            StatementKind::Expression { expression } => {
+            Statement::Expression { expression } => {
                 self.evaluate(expression)?;
             }
         };

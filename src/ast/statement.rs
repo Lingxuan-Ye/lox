@@ -1,29 +1,22 @@
 use super::expression::Expression;
-use std::range::Range;
 
 #[derive(Debug, PartialEq)]
-pub struct Statement<'a> {
-    pub kind: StatementKind<'a>,
-    pub range: Range<usize>,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum StatementKind<'a> {
+pub enum Statement<'a> {
     VariableDeclaration {
         name: &'a str,
         initializer: Option<Expression<'a>>,
     },
     Block {
-        statements: Vec<Statement<'a>>,
+        statements: Vec<Self>,
     },
     If {
         condition: Expression<'a>,
-        then_branch: Box<Statement<'a>>,
-        else_branch: Option<Box<Statement<'a>>>,
+        then_branch: Box<Self>,
+        else_branch: Option<Box<Self>>,
     },
     While {
         condition: Expression<'a>,
-        body: Box<Statement<'a>>,
+        body: Box<Self>,
     },
     Print {
         expression: Expression<'a>,
@@ -34,53 +27,38 @@ pub enum StatementKind<'a> {
 }
 
 impl<'a> Statement<'a> {
-    pub fn variable_declaration(
-        name: &'a str,
-        initializer: Option<Expression<'a>>,
-        range: Range<usize>,
-    ) -> Self {
-        let kind = StatementKind::VariableDeclaration { name, initializer };
-        Self { kind, range }
+    pub fn variable_declaration(name: &'a str, initializer: Option<Expression<'a>>) -> Self {
+        Self::VariableDeclaration { name, initializer }
     }
 
-    pub fn block(statements: Vec<Statement<'a>>, range: Range<usize>) -> Self {
-        let kind = StatementKind::Block { statements };
-        Self { kind, range }
+    pub fn block(statements: Vec<Self>) -> Self {
+        Self::Block { statements }
     }
 
     pub fn if_statement(
         condition: Expression<'a>,
-        then_branch: Statement<'a>,
-        else_branch: Option<Statement<'a>>,
-        range: Range<usize>,
+        then_branch: Self,
+        else_branch: Option<Self>,
     ) -> Self {
         let then_branch = Box::new(then_branch);
         let else_branch = else_branch.map(Box::new);
-        let kind = StatementKind::If {
+        Self::If {
             condition,
             then_branch,
             else_branch,
-        };
-        Self { kind, range }
+        }
     }
 
-    pub fn while_statement(
-        condition: Expression<'a>,
-        body: Statement<'a>,
-        range: Range<usize>,
-    ) -> Self {
+    pub fn while_statement(condition: Expression<'a>, body: Self) -> Self {
         let body = Box::new(body);
-        let kind = StatementKind::While { condition, body };
-        Self { kind, range }
+        Self::While { condition, body }
     }
 
-    pub fn print(expression: Expression<'a>, range: Range<usize>) -> Self {
-        let kind = StatementKind::Print { expression };
-        Self { kind, range }
+    pub fn print(expression: Expression<'a>) -> Self {
+        Self::Print { expression }
     }
 
-    pub fn expression(expression: Expression<'a>, range: Range<usize>) -> Self {
-        let kind = StatementKind::Expression { expression };
-        Self { kind, range }
+    pub fn expression(expression: Expression<'a>) -> Self {
+        Self::Expression { expression }
     }
 }

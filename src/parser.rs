@@ -125,8 +125,6 @@ impl<'a> Parser<'a> {
         // They exist only for correctness should this method ever be called directly,
         // even though it is not intended to.
 
-        let start = token.range.start;
-
         let token = match self.next_token() {
             None => {
                 let error = ParseError::UnexpectedEndOfInput;
@@ -192,9 +190,7 @@ impl<'a> Parser<'a> {
             return Some(Err(error));
         }
 
-        let end = token.range.end;
-        let range = Range { start, end };
-        let statement = Statement::variable_declaration(name, initializer, range);
+        let statement = Statement::variable_declaration(name, initializer);
         Some(Ok(statement))
     }
 
@@ -234,9 +230,6 @@ impl<'a> Parser<'a> {
         // They exist only for correctness should this method ever be called directly,
         // even though it is not intended to.
 
-        let start = token.range.start;
-        let end;
-
         let mut statements = Vec::new();
 
         loop {
@@ -256,7 +249,6 @@ impl<'a> Parser<'a> {
             };
 
             if token.kind == TokenKind::RBrace {
-                end = token.range.end;
                 self.next_token();
                 break;
             }
@@ -268,8 +260,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let range = Range { start, end };
-        let statement = Statement::block(statements, range);
+        let statement = Statement::block(statements);
         Some(Ok(statement))
     }
 
@@ -290,8 +281,6 @@ impl<'a> Parser<'a> {
         // The early returns above are unreachable when called from `Parser::statement`.
         // They exist only for correctness should this method ever be called directly,
         // even though it is not intended to.
-
-        let start = token.range.start;
 
         let token = match self.next_token() {
             None => {
@@ -363,17 +352,13 @@ impl<'a> Parser<'a> {
                     Some(Err(error)) => return Some(Err(error)),
                     Some(Ok(statement)) => statement,
                 };
-                let end = else_branch.range.end;
-                let range = Range { start, end };
                 let else_branch = Some(else_branch);
-                let statement = Statement::if_statement(condition, then_branch, else_branch, range);
+                let statement = Statement::if_statement(condition, then_branch, else_branch);
                 Some(Ok(statement))
             }
             Some(Ok(_)) | None => {
                 let else_branch = None;
-                let end = then_branch.range.end;
-                let range = Range { start, end };
-                let statement = Statement::if_statement(condition, then_branch, else_branch, range);
+                let statement = Statement::if_statement(condition, then_branch, else_branch);
                 Some(Ok(statement))
             }
         }
@@ -396,8 +381,6 @@ impl<'a> Parser<'a> {
         // The early returns above are unreachable when called from `Parser::statement`.
         // They exist only for correctness should this method ever be called directly,
         // even though it is not intended to.
-
-        let start = token.range.start;
 
         let token = match self.next_token() {
             None => {
@@ -451,9 +434,7 @@ impl<'a> Parser<'a> {
             Some(Ok(statement)) => statement,
         };
 
-        let end = body.range.end;
-        let range = Range { start, end };
-        let statement = Statement::while_statement(condition, body, range);
+        let statement = Statement::while_statement(condition, body);
         Some(Ok(statement))
     }
 
@@ -474,8 +455,6 @@ impl<'a> Parser<'a> {
         // The early returns above are unreachable when called from `Parser::statement`.
         // They exist only for correctness should this method ever be called directly,
         // even though it is not intended to.
-
-        let start = token.range.start;
 
         let expression = match self.expression() {
             None => {
@@ -503,9 +482,7 @@ impl<'a> Parser<'a> {
             return Some(Err(error));
         }
 
-        let end = token.range.end;
-        let range = Range { start, end };
-        let statement = Statement::print(expression, range);
+        let statement = Statement::print(expression);
         Some(Ok(statement))
     }
 
@@ -532,10 +509,7 @@ impl<'a> Parser<'a> {
             return Some(Err(error));
         }
 
-        let start = expression.range.start;
-        let end = token.range.end;
-        let range = Range { start, end };
-        let statement = Statement::expression(expression, range);
+        let statement = Statement::expression(expression);
         Some(Ok(statement))
     }
 
