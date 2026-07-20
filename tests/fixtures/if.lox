@@ -1,0 +1,16 @@
+var foo = 1;
+var bar = 2;
+
+if (foo == bar) {
+    print "foo == bar";
+} else {
+    print "foo != bar";
+}
+
+foo = 2;
+
+if (foo == bar) {
+    print "foo == bar";
+} else {
+    print "foo != bar";
+}

@@ -1,0 +1,7 @@
+var foo = 1;
+var bar = 2;
+var baz;
+print foo + bar;
+foo = bar = 3;
+print foo + bar;
+print baz;

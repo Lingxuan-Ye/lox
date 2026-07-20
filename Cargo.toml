@@ -6,3 +6,6 @@ publish = false
 
 [dependencies]
 unicode-ident = "1.0.24"
+
+[dev-dependencies]
+mofu = "0.1.2"
