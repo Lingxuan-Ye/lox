@@ -17,6 +17,18 @@ impl Value<'_> {
             _ => true,
         }
     }
+
+    pub fn promote(self) -> Value<'static> {
+        match self {
+            Value::String(string) => {
+                let string = string.into_shared();
+                Value::String(string)
+            }
+            Value::Number(number) => Value::Number(number),
+            Value::Boolean(boolean) => Value::Boolean(boolean),
+            Value::Nil => Value::Nil,
+        }
+    }
 }
 
 impl fmt::Display for Value<'_> {
