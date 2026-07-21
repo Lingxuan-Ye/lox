@@ -770,12 +770,12 @@ pub enum ParseError {
     InvalidEscapeSequence { range: Range<usize> },
 }
 
-trait Require<T> {
-    fn require(self) -> Result<T, ParseError>;
+trait Require {
+    fn require(self) -> Result<Token, ParseError>;
 }
 
-impl<T> Require<T> for Option<Result<T, ParseError>> {
-    fn require(self) -> Result<T, ParseError> {
+impl Require for Option<Result<Token, ParseError>> {
+    fn require(self) -> Result<Token, ParseError> {
         self.transpose()?.ok_or(ParseError::UnexpectedEndOfInput)
     }
 }
