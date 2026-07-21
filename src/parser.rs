@@ -11,13 +11,19 @@ use std::range::Range;
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
     peeked: Option<Option<Result<Token, LexError>>>,
+    panic_mode: bool,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
         let lexer = Lexer::new(source);
         let peeked = None;
-        Self { lexer, peeked }
+        let panic_mode = true;
+        Self {
+            lexer,
+            peeked,
+            panic_mode,
+        }
     }
 
     pub fn source(&self) -> &'a str {
@@ -88,7 +94,11 @@ impl<'a> Parser<'a> {
             let Some(Err(error)) = self.next_token() else {
                 unreachable!()
             };
-            self.synchronize();
+            if self.panic_mode {
+                self.synchronize();
+            } else {
+                self.panic_mode = true;
+            }
             let error = ParseError::LexError(error);
             return Some(Err(error));
         };
@@ -101,7 +111,11 @@ impl<'a> Parser<'a> {
         let result = option.unwrap_or_else(|| unreachable!());
 
         if result.is_err() {
-            self.synchronize();
+            if self.panic_mode {
+                self.synchronize();
+            } else {
+                self.panic_mode = true;
+            }
         }
 
         Some(result)
@@ -712,6 +726,7 @@ impl<'a> Parser<'a> {
         self.next_token();
 
         let ExpressionKind::Variable { name } = lhs.kind else {
+            self.panic_mode = false;
             let range = lhs.range;
             let error = ParseError::InvalidAssignmentTarget { range };
             return Some(Err(error));
