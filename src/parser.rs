@@ -759,7 +759,7 @@ impl<'a> Parser<'a> {
 
             self.next_token();
 
-            let rhs = match self.term() {
+            let rhs = match self.and() {
                 None => {
                     let error = ParseError::UnexpectedEndOfInput;
                     return Some(Err(error));
@@ -803,7 +803,7 @@ impl<'a> Parser<'a> {
 
             self.next_token();
 
-            let rhs = match self.term() {
+            let rhs = match self.equality() {
                 None => {
                     let error = ParseError::UnexpectedEndOfInput;
                     return Some(Err(error));
