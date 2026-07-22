@@ -55,7 +55,10 @@ where
         Ok(())
     }
 
-    pub fn execute(&mut self, statement: &Statement<'a>) -> Result<(), RuntimeError<'a>> {
+    pub fn execute(
+        &mut self,
+        statement: &Statement<'a>,
+    ) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
         match statement {
             Statement::FunctionDeclaration { declaration } => {
                 let declaration = Rc::clone(declaration);
@@ -80,9 +83,16 @@ where
                 let previous = Rc::clone(&self.current);
                 self.current = Environment::with_enclosing(Rc::clone(&previous)).into_shared();
                 for statement in statements {
-                    if let Err(error) = self.execute(statement) {
-                        self.current = previous;
-                        return Err(error);
+                    match self.execute(statement) {
+                        Err(error) => {
+                            self.current = previous;
+                            return Err(error);
+                        }
+                        Ok(ControlFlow::Return(value)) => {
+                            self.current = previous;
+                            return Ok(ControlFlow::Return(value));
+                        }
+                        Ok(ControlFlow::Proceed) => (),
                     }
                 }
                 self.current = previous;
@@ -94,15 +104,24 @@ where
                 else_branch,
             } => {
                 if self.evaluate(condition)?.is_truthy() {
-                    self.execute(then_branch)?;
+                    match self.execute(then_branch)? {
+                        ControlFlow::Return(value) => return Ok(ControlFlow::Return(value)),
+                        ControlFlow::Proceed => (),
+                    }
                 } else if let Some(else_branch) = else_branch {
-                    self.execute(else_branch)?;
+                    match self.execute(else_branch)? {
+                        ControlFlow::Return(value) => return Ok(ControlFlow::Return(value)),
+                        ControlFlow::Proceed => (),
+                    }
                 }
             }
 
             Statement::While { condition, body } => {
                 while self.evaluate(condition)?.is_truthy() {
-                    self.execute(body)?;
+                    match self.execute(body)? {
+                        ControlFlow::Return(value) => return Ok(ControlFlow::Return(value)),
+                        ControlFlow::Proceed => (),
+                    }
                 }
             }
 
@@ -114,8 +133,17 @@ where
             Statement::Expression { expression } => {
                 self.evaluate(expression)?;
             }
+
+            Statement::Return { value } => {
+                let value = match value {
+                    None => Value::Nil,
+                    Some(value) => self.evaluate(value)?,
+                };
+                return Ok(ControlFlow::Return(value));
+            }
         };
-        Ok(())
+
+        Ok(ControlFlow::Proceed)
     }
 
     pub fn evaluate(&mut self, expression: &Expression<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
@@ -317,6 +345,12 @@ where
             }
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ControlFlow<'a> {
+    Return(Value<'a>),
+    Proceed,
 }
 
 #[derive(Debug)]

@@ -14,6 +14,7 @@ pub struct Parser<'a> {
     lexer: Lexer<'a>,
     peeked: Option<Result<Token, ParseError>>,
     panic_mode: bool,
+    function_declaration_depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -21,10 +22,12 @@ impl<'a> Parser<'a> {
         let lexer = Lexer::new(source);
         let peeked = None;
         let panic_mode = true;
+        let function_declaration_depth = 0;
         Self {
             lexer,
             peeked,
             panic_mode,
+            function_declaration_depth,
         }
     }
 
@@ -210,27 +213,35 @@ impl<'a> Parser<'a> {
             return Err(error);
         }
 
-        let mut body = Vec::new();
+        self.function_declaration_depth += 1;
 
-        loop {
-            let Some(Ok(token)) = self.peek_token() else {
-                let Err(error) = self.next_token().require() else {
-                    unreachable!()
+        let result = 'result: {
+            let mut body = Vec::new();
+
+            loop {
+                let Some(Ok(token)) = self.peek_token() else {
+                    let Err(error) = self.next_token().require() else {
+                        unreachable!()
+                    };
+                    break 'result Err(error);
                 };
-                return Err(error);
-            };
 
-            if token.kind == TokenKind::RBrace {
-                self.next_token();
-                break;
+                if token.kind == TokenKind::RBrace {
+                    self.next_token();
+                    break;
+                }
+
+                let statement = self.declaration()?;
+                body.push(statement);
             }
 
-            let statement = self.declaration()?;
-            body.push(statement);
-        }
+            let statement = Statement::function_declaration(name, parameters, body);
+            Ok(statement)
+        };
 
-        let statement = Statement::function_declaration(name, parameters, body);
-        Ok(statement)
+        self.function_declaration_depth -= 1;
+
+        result
     }
 
     fn variable_declaration(&mut self) -> Result<Statement<'a>, ParseError> {
@@ -287,6 +298,7 @@ impl<'a> Parser<'a> {
             TokenKind::Keyword(Keyword::While) => self.while_statement(),
             TokenKind::Keyword(Keyword::For) => self.for_statement(),
             TokenKind::Keyword(Keyword::Print) => self.print_statement(),
+            TokenKind::Keyword(Keyword::Return) => self.return_statement(),
             _ => self.expression_statement(),
         }
     }
@@ -493,6 +505,44 @@ impl<'a> Parser<'a> {
         }
 
         let statement = Statement::print(expression);
+        Ok(statement)
+    }
+
+    fn return_statement(&mut self) -> Result<Statement<'a>, ParseError> {
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::Keyword(Keyword::Return) {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        if self.function_declaration_depth == 0 {
+            let range = token.range;
+            let error = ParseError::ReturnOutsideFunction { range };
+            return Err(error);
+        }
+
+        let Some(Ok(token)) = self.peek_token() else {
+            let Err(error) = self.next_token().require() else {
+                unreachable!()
+            };
+            return Err(error);
+        };
+
+        if token.kind == TokenKind::Semicolon {
+            self.next_token();
+            let statement = Statement::return_statement(None);
+            return Ok(statement);
+        }
+
+        let value = self.expression()?;
+
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::Semicolon {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let statement = Statement::return_statement(Some(value));
         Ok(statement)
     }
 
@@ -946,6 +996,7 @@ pub enum ParseError {
     LexError(LexError),
     UnexpectedEndOfInput,
     UnexpectedToken(Token),
+    ReturnOutsideFunction { range: Range<usize> },
     InvalidAssignmentTarget { range: Range<usize> },
     TooManyArguments { range: Range<usize> },
     InvalidEscapeSequence { range: Range<usize> },

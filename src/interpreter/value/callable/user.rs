@@ -1,5 +1,5 @@
-use super::super::super::Interpreter;
 use super::super::super::environment::Environment;
+use super::super::super::{ControlFlow, Interpreter};
 use super::super::Value;
 use super::Call;
 use crate::ast::statement::FunctionDeclaration;
@@ -44,9 +44,16 @@ impl<'a> Call<'a> for UserFunction<'a> {
         let previous = Rc::clone(&interpreter.current);
         interpreter.current = environment.into_shared();
         for statement in &self.declaration.body {
-            if let Err(error) = interpreter.execute(statement) {
-                interpreter.current = previous;
-                return Err(error);
+            match interpreter.execute(statement) {
+                Err(error) => {
+                    interpreter.current = previous;
+                    return Err(error);
+                }
+                Ok(ControlFlow::Return(value)) => {
+                    interpreter.current = previous;
+                    return Ok(value);
+                }
+                Ok(ControlFlow::Proceed) => (),
             }
         }
         interpreter.current = previous;

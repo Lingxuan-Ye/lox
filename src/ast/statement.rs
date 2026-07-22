@@ -28,6 +28,9 @@ pub enum Statement<'a> {
     Expression {
         expression: Expression<'a>,
     },
+    Return {
+        value: Option<Expression<'a>>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -83,5 +86,9 @@ impl<'a> Statement<'a> {
 
     pub fn expression(expression: Expression<'a>) -> Self {
         Self::Expression { expression }
+    }
+
+    pub fn return_statement(value: Option<Expression<'a>>) -> Self {
+        Self::Return { value }
     }
 }
