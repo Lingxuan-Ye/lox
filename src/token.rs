@@ -37,7 +37,6 @@ pub enum TokenKind {
 
 #[derive(Debug, PartialEq)]
 pub enum Keyword {
-    Print,
     Class,
     Super,
     Fun,
@@ -52,13 +51,13 @@ pub enum Keyword {
     True,
     False,
     Nil,
+    Print,
     Return,
 }
 
 impl Keyword {
     pub fn from_lexeme(lexeme: &str) -> Option<Self> {
         match lexeme {
-            "print" => Some(Self::Print),
             "class" => Some(Self::Class),
             "super" => Some(Self::Super),
             "fun" => Some(Self::Fun),
@@ -73,6 +72,7 @@ impl Keyword {
             "true" => Some(Self::True),
             "false" => Some(Self::False),
             "nil" => Some(Self::Nil),
+            "print" => Some(Self::Print),
             "return" => Some(Self::Return),
             _ => None,
         }

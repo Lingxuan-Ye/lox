@@ -13,23 +13,23 @@ pub enum Statement<'a> {
     Block {
         statements: Vec<Self>,
     },
+    While {
+        condition: Expression<'a>,
+        body: Box<Self>,
+    },
     If {
         condition: Expression<'a>,
         then_branch: Box<Self>,
         else_branch: Option<Box<Self>>,
     },
-    While {
-        condition: Expression<'a>,
-        body: Box<Self>,
-    },
     Print {
-        expression: Expression<'a>,
-    },
-    Expression {
         expression: Expression<'a>,
     },
     Return {
         value: Option<Expression<'a>>,
+    },
+    Expression {
+        expression: Expression<'a>,
     },
 }
 
@@ -61,6 +61,11 @@ impl<'a> Statement<'a> {
         Self::Block { statements }
     }
 
+    pub fn while_statement(condition: Expression<'a>, body: Self) -> Self {
+        let body = Box::new(body);
+        Self::While { condition, body }
+    }
+
     pub fn if_statement(
         condition: Expression<'a>,
         then_branch: Self,
@@ -75,20 +80,15 @@ impl<'a> Statement<'a> {
         }
     }
 
-    pub fn while_statement(condition: Expression<'a>, body: Self) -> Self {
-        let body = Box::new(body);
-        Self::While { condition, body }
-    }
-
     pub fn print(expression: Expression<'a>) -> Self {
         Self::Print { expression }
     }
 
-    pub fn expression(expression: Expression<'a>) -> Self {
-        Self::Expression { expression }
-    }
-
     pub fn return_statement(value: Option<Expression<'a>>) -> Self {
         Self::Return { value }
+    }
+
+    pub fn expression(expression: Expression<'a>) -> Self {
+        Self::Expression { expression }
     }
 }

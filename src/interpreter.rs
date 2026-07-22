@@ -98,6 +98,15 @@ where
                 self.current = previous;
             }
 
+            Statement::While { condition, body } => {
+                while self.evaluate(condition)?.is_truthy() {
+                    match self.execute(body)? {
+                        ControlFlow::Return(value) => return Ok(ControlFlow::Return(value)),
+                        ControlFlow::Proceed => (),
+                    }
+                }
+            }
+
             Statement::If {
                 condition,
                 then_branch,
@@ -116,22 +125,9 @@ where
                 }
             }
 
-            Statement::While { condition, body } => {
-                while self.evaluate(condition)?.is_truthy() {
-                    match self.execute(body)? {
-                        ControlFlow::Return(value) => return Ok(ControlFlow::Return(value)),
-                        ControlFlow::Proceed => (),
-                    }
-                }
-            }
-
             Statement::Print { expression } => {
                 let value = self.evaluate(expression)?;
                 writeln!(self.output, "{value}").map_err(RuntimeError::io_error)?;
-            }
-
-            Statement::Expression { expression } => {
-                self.evaluate(expression)?;
             }
 
             Statement::Return { value } => {
@@ -140,6 +136,10 @@ where
                     Some(value) => self.evaluate(value)?,
                 };
                 return Ok(ControlFlow::Return(value));
+            }
+
+            Statement::Expression { expression } => {
+                self.evaluate(expression)?;
             }
         };
 

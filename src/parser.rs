@@ -294,9 +294,9 @@ impl<'a> Parser<'a> {
 
         match token.kind {
             TokenKind::LBrace => self.block_statement(),
-            TokenKind::Keyword(Keyword::If) => self.if_statement(),
             TokenKind::Keyword(Keyword::While) => self.while_statement(),
             TokenKind::Keyword(Keyword::For) => self.for_statement(),
+            TokenKind::Keyword(Keyword::If) => self.if_statement(),
             TokenKind::Keyword(Keyword::Print) => self.print_statement(),
             TokenKind::Keyword(Keyword::Return) => self.return_statement(),
             _ => self.expression_statement(),
@@ -330,48 +330,6 @@ impl<'a> Parser<'a> {
         }
 
         let statement = Statement::block(statements);
-        Ok(statement)
-    }
-
-    fn if_statement(&mut self) -> Result<Statement<'a>, ParseError> {
-        let token = self.next_token().require()?;
-        if token.kind != TokenKind::Keyword(Keyword::If) {
-            let error = ParseError::UnexpectedToken(token);
-            return Err(error);
-        }
-
-        let token = self.next_token().require()?;
-        if token.kind != TokenKind::LParen {
-            let error = ParseError::UnexpectedToken(token);
-            return Err(error);
-        }
-
-        let condition = self.expression()?;
-
-        let token = self.next_token().require()?;
-        if token.kind != TokenKind::RParen {
-            let error = ParseError::UnexpectedToken(token);
-            return Err(error);
-        }
-
-        let then_branch = self.statement()?;
-
-        let else_branch = match self.peek_token() {
-            Some(Err(_)) => {
-                let Some(Err(error)) = self.next_token() else {
-                    unreachable!()
-                };
-                return Err(error);
-            }
-            Some(Ok(token)) if token.kind == TokenKind::Keyword(Keyword::Else) => {
-                self.next_token();
-                let statement = self.statement()?;
-                Some(statement)
-            }
-            Some(Ok(_)) | None => None,
-        };
-
-        let statement = Statement::if_statement(condition, then_branch, else_branch);
         Ok(statement)
     }
 
@@ -486,6 +444,48 @@ impl<'a> Parser<'a> {
         if let Some(initializer) = initializer {
             statement = Statement::block(vec![initializer, statement]);
         }
+        Ok(statement)
+    }
+
+    fn if_statement(&mut self) -> Result<Statement<'a>, ParseError> {
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::Keyword(Keyword::If) {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::LParen {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let condition = self.expression()?;
+
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::RParen {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let then_branch = self.statement()?;
+
+        let else_branch = match self.peek_token() {
+            Some(Err(_)) => {
+                let Some(Err(error)) = self.next_token() else {
+                    unreachable!()
+                };
+                return Err(error);
+            }
+            Some(Ok(token)) if token.kind == TokenKind::Keyword(Keyword::Else) => {
+                self.next_token();
+                let statement = self.statement()?;
+                Some(statement)
+            }
+            Some(Ok(_)) | None => None,
+        };
+
+        let statement = Statement::if_statement(condition, then_branch, else_branch);
         Ok(statement)
     }
 
