@@ -16,7 +16,6 @@ mod environment;
 
 #[derive(Debug)]
 pub struct Interpreter<'a, W> {
-    global: Rc<RefCell<Environment<'a>>>,
     current: Rc<RefCell<Environment<'a>>>,
     output: W,
 }
@@ -33,13 +32,8 @@ where
             let function = Value::Callable(function);
             global.define(name, function);
         }
-        let global = global.into_shared();
-        let current = Rc::clone(&global);
-        Self {
-            global,
-            current,
-            output,
-        }
+        let current = global.into_shared();
+        Self { current, output }
     }
 
     pub fn flush(&mut self) -> io::Result<()> {
@@ -61,9 +55,10 @@ where
     ) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
         match statement {
             Statement::FunctionDeclaration { declaration } => {
-                let declaration = Rc::clone(declaration);
                 let name = declaration.name;
-                let function = UserFunction::new(declaration);
+                let declaration = Rc::clone(declaration);
+                let closure = Rc::clone(&self.current);
+                let function = UserFunction::new(declaration, closure);
                 let function = Callable::User(function);
                 let function = Value::Callable(function);
                 self.current.borrow_mut().define(name, function);
@@ -81,7 +76,8 @@ where
 
             Statement::Block { statements } => {
                 let previous = Rc::clone(&self.current);
-                self.current = Environment::with_enclosing(Rc::clone(&previous)).into_shared();
+                let enclosing = Rc::clone(&self.current);
+                self.current = Environment::with_enclosing(enclosing).into_shared();
                 for statement in statements {
                     match self.execute(statement) {
                         Err(error) => {
