@@ -7,6 +7,8 @@ use crate::string::LoxString;
 use crate::token::{Keyword, Token, TokenKind};
 use std::range::Range;
 
+const MAX_ARITY: usize = 255;
+
 #[derive(Debug)]
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
@@ -113,6 +115,7 @@ impl<'a> Parser<'a> {
         };
 
         let result = match token.kind {
+            TokenKind::Keyword(Keyword::Fun) => self.function_declaration(),
             TokenKind::Keyword(Keyword::Var) => self.variable_declaration(),
             _ => self.statement(),
         };
@@ -126,6 +129,108 @@ impl<'a> Parser<'a> {
         }
 
         result
+    }
+
+    fn function_declaration(&mut self) -> Result<Statement<'a>, ParseError> {
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::Keyword(Keyword::Fun) {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let start = token.range.start;
+
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::Identifier {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let name = &self.source()[token.range];
+
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::LParen {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let mut parameters = Vec::new();
+
+        let Some(Ok(token)) = self.peek_token() else {
+            let Err(error) = self.next_token().require() else {
+                unreachable!()
+            };
+            return Err(error);
+        };
+
+        if token.kind != TokenKind::RParen {
+            loop {
+                let token = self.next_token().require()?;
+                if token.kind != TokenKind::Identifier {
+                    let error = ParseError::UnexpectedToken(token);
+                    return Err(error);
+                }
+
+                if parameters.len() == MAX_ARITY {
+                    self.panic_mode = false;
+                    let end = token.range.end;
+                    let range = Range { start, end };
+                    let error = ParseError::TooManyArguments { range };
+                    return Err(error);
+                }
+
+                let parameter = &self.source()[token.range];
+
+                parameters.push(parameter);
+
+                let Some(Ok(token)) = self.peek_token() else {
+                    let Err(error) = self.next_token().require() else {
+                        unreachable!()
+                    };
+                    return Err(error);
+                };
+
+                if token.kind != TokenKind::Comma {
+                    break;
+                }
+
+                self.next_token();
+            }
+        }
+
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::RParen {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let token = self.next_token().require()?;
+        if token.kind != TokenKind::LBrace {
+            let error = ParseError::UnexpectedToken(token);
+            return Err(error);
+        }
+
+        let mut body = Vec::new();
+
+        loop {
+            let Some(Ok(token)) = self.peek_token() else {
+                let Err(error) = self.next_token().require() else {
+                    unreachable!()
+                };
+                return Err(error);
+            };
+
+            if token.kind == TokenKind::RBrace {
+                self.next_token();
+                break;
+            }
+
+            let statement = self.declaration()?;
+            body.push(statement);
+        }
+
+        let statement = Statement::function_declaration(name, parameters, body);
+        Ok(statement)
     }
 
     fn variable_declaration(&mut self) -> Result<Statement<'a>, ParseError> {
@@ -652,7 +757,7 @@ impl<'a> Parser<'a> {
         let operator = match token.kind {
             TokenKind::Minus => UnaryOperator::Neg,
             TokenKind::Bang => UnaryOperator::Not,
-            _ => return self.primary(),
+            _ => return self.call(),
         };
 
         let start = token.range.start;
@@ -663,6 +768,81 @@ impl<'a> Parser<'a> {
         let end = rhs.range.end;
         let range = Range { start, end };
         let expression = Expression::unary(operator, rhs, range);
+        Ok(expression)
+    }
+
+    fn call(&mut self) -> Result<Expression<'a>, ParseError> {
+        let mut expression = self.primary()?;
+
+        let start = expression.range.start;
+
+        loop {
+            let token = match self.peek_token() {
+                None => break,
+                Some(Err(_)) => {
+                    let Some(Err(error)) = self.next_token() else {
+                        unreachable!()
+                    };
+                    return Err(error);
+                }
+                Some(Ok(token)) => token,
+            };
+
+            if token.kind != TokenKind::LParen {
+                break;
+            }
+
+            self.next_token();
+
+            let mut arguments = Vec::new();
+
+            let Some(Ok(token)) = self.peek_token() else {
+                let Err(error) = self.next_token().require() else {
+                    unreachable!()
+                };
+                return Err(error);
+            };
+
+            if token.kind != TokenKind::RParen {
+                loop {
+                    let expression = self.expression()?;
+
+                    if arguments.len() == MAX_ARITY {
+                        self.panic_mode = false;
+                        let end = expression.range.end;
+                        let range = Range { start, end };
+                        let error = ParseError::TooManyArguments { range };
+                        return Err(error);
+                    }
+
+                    arguments.push(expression);
+
+                    let Some(Ok(token)) = self.peek_token() else {
+                        let Err(error) = self.next_token().require() else {
+                            unreachable!()
+                        };
+                        return Err(error);
+                    };
+
+                    if token.kind != TokenKind::Comma {
+                        break;
+                    }
+
+                    self.next_token();
+                }
+            }
+
+            let token = self.next_token().require()?;
+            if token.kind != TokenKind::RParen {
+                let error = ParseError::UnexpectedToken(token);
+                return Err(error);
+            }
+
+            let end = token.range.end;
+            let range = Range { start, end };
+            expression = Expression::call(expression, arguments, range);
+        }
+
         Ok(expression)
     }
 
@@ -767,6 +947,7 @@ pub enum ParseError {
     UnexpectedEndOfInput,
     UnexpectedToken(Token),
     InvalidAssignmentTarget { range: Range<usize> },
+    TooManyArguments { range: Range<usize> },
     InvalidEscapeSequence { range: Range<usize> },
 }
 

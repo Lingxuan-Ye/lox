@@ -27,6 +27,10 @@ pub enum ExpressionKind<'a> {
         operator: UnaryOperator,
         rhs: Box<Expression<'a>>,
     },
+    Call {
+        callee: Box<Expression<'a>>,
+        arguments: Vec<Expression<'a>>,
+    },
     Grouping {
         expression: Box<Expression<'a>>,
     },
@@ -94,6 +98,12 @@ impl<'a> Expression<'a> {
     pub fn unary(operator: UnaryOperator, rhs: Self, range: Range<usize>) -> Self {
         let rhs = Box::new(rhs);
         let kind = ExpressionKind::Unary { operator, rhs };
+        Self { kind, range }
+    }
+
+    pub fn call(callee: Self, arguments: Vec<Self>, range: Range<usize>) -> Self {
+        let callee = Box::new(callee);
+        let kind = ExpressionKind::Call { callee, arguments };
         Self { kind, range }
     }
 

@@ -1,6 +1,5 @@
-pub use self::value::Value;
-
 use self::environment::Environment;
+use self::value::{Call, Callable, NativeFunction, UserFunction, Value};
 use crate::ast::expression::{
     BinaryOperator, Expression, ExpressionKind, Literal, LogicalOperator, UnaryOperator,
 };
@@ -11,12 +10,14 @@ use std::io;
 use std::range::Range;
 use std::rc::Rc;
 
+pub mod value;
+
 mod environment;
-mod value;
 
 #[derive(Debug)]
 pub struct Interpreter<'a, W> {
-    environment: Rc<RefCell<Environment<'a>>>,
+    global: Rc<RefCell<Environment<'a>>>,
+    current: Rc<RefCell<Environment<'a>>>,
     output: W,
 }
 
@@ -25,9 +26,18 @@ where
     W: io::Write,
 {
     pub fn new(output: W) -> Self {
-        let environment = Environment::new().into_shared();
+        let mut global = Environment::new();
+        for function in NativeFunction::ALL {
+            let name = function.name();
+            let function = Callable::Native(function);
+            let function = Value::Callable(function);
+            global.define(name, function);
+        }
+        let global = global.into_shared();
+        let current = Rc::clone(&global);
         Self {
-            environment,
+            global,
+            current,
             output,
         }
     }
@@ -47,32 +57,35 @@ where
 
     pub fn execute(&mut self, statement: &Statement<'a>) -> Result<(), RuntimeError<'a>> {
         match statement {
+            Statement::FunctionDeclaration { declaration } => {
+                let declaration = Rc::clone(declaration);
+                let name = declaration.name;
+                let function = UserFunction::new(declaration);
+                let function = Callable::User(function);
+                let function = Value::Callable(function);
+                self.current.borrow_mut().define(name, function);
+            }
+
             Statement::VariableDeclaration { name, initializer } => {
                 if let Some(initializer) = initializer {
                     let value = self.evaluate(initializer)?;
-                    self.environment.borrow_mut().define(name, value);
+                    self.current.borrow_mut().define(name, value);
                 } else {
                     let value = Value::Nil;
-                    self.environment.borrow_mut().define(name, value);
+                    self.current.borrow_mut().define(name, value);
                 }
             }
 
             Statement::Block { statements } => {
-                let previous = Rc::clone(&self.environment);
-                self.environment = Environment::with_enclosing(Rc::clone(&previous)).into_shared();
+                let previous = Rc::clone(&self.current);
+                self.current = Environment::with_enclosing(Rc::clone(&previous)).into_shared();
                 for statement in statements {
                     if let Err(error) = self.execute(statement) {
-                        self.environment = previous;
+                        self.current = previous;
                         return Err(error);
                     }
                 }
-                self.environment = previous;
-            }
-
-            Statement::While { condition, body } => {
-                while self.evaluate(condition)?.is_truthy() {
-                    self.execute(body)?;
-                }
+                self.current = previous;
             }
 
             Statement::If {
@@ -87,9 +100,15 @@ where
                 }
             }
 
+            Statement::While { condition, body } => {
+                while self.evaluate(condition)?.is_truthy() {
+                    self.execute(body)?;
+                }
+            }
+
             Statement::Print { expression } => {
                 let value = self.evaluate(expression)?;
-                writeln!(self.output, "{value}").map_err(RuntimeError::IoError)?;
+                writeln!(self.output, "{value}").map_err(RuntimeError::io_error)?;
             }
 
             Statement::Expression { expression } => {
@@ -122,10 +141,10 @@ where
 
             ExpressionKind::Assignment { name, value } => {
                 let value = self.evaluate(value)?;
-                self.environment
+                self.current
                     .borrow_mut()
                     .assign(name, value)
-                    .map_err(|_| RuntimeError::UndefinedVariable { range })
+                    .map_err(|_| RuntimeError::undefined_variable(range))
             }
 
             ExpressionKind::Binary { operator, lhs, rhs } => {
@@ -143,12 +162,8 @@ where
                             Ok(value)
                         }
                         (lhs, rhs) => {
-                            let error = RuntimeError::InvalidBinaryOperands {
-                                operator,
-                                lhs,
-                                rhs,
-                                range,
-                            };
+                            let error =
+                                RuntimeError::invalid_binary_operands(operator, lhs, rhs, range);
                             Err(error)
                         }
                     },
@@ -158,12 +173,8 @@ where
                             Ok(value)
                         }
                         (lhs, rhs) => {
-                            let error = RuntimeError::InvalidBinaryOperands {
-                                operator,
-                                lhs,
-                                rhs,
-                                range,
-                            };
+                            let error =
+                                RuntimeError::invalid_binary_operands(operator, lhs, rhs, range);
                             Err(error)
                         }
                     },
@@ -173,12 +184,8 @@ where
                             Ok(value)
                         }
                         (lhs, rhs) => {
-                            let error = RuntimeError::InvalidBinaryOperands {
-                                operator,
-                                lhs,
-                                rhs,
-                                range,
-                            };
+                            let error =
+                                RuntimeError::invalid_binary_operands(operator, lhs, rhs, range);
                             Err(error)
                         }
                     },
@@ -188,12 +195,8 @@ where
                             Ok(value)
                         }
                         (lhs, rhs) => {
-                            let error = RuntimeError::InvalidBinaryOperands {
-                                operator,
-                                lhs,
-                                rhs,
-                                range,
-                            };
+                            let error =
+                                RuntimeError::invalid_binary_operands(operator, lhs, rhs, range);
                             Err(error)
                         }
                     },
@@ -203,12 +206,8 @@ where
                             Ok(value)
                         }
                         (lhs, rhs) => {
-                            let error = RuntimeError::InvalidBinaryOperands {
-                                operator,
-                                lhs,
-                                rhs,
-                                range,
-                            };
+                            let error =
+                                RuntimeError::invalid_binary_operands(operator, lhs, rhs, range);
                             Err(error)
                         }
                     },
@@ -218,12 +217,8 @@ where
                             Ok(value)
                         }
                         (lhs, rhs) => {
-                            let error = RuntimeError::InvalidBinaryOperands {
-                                operator,
-                                lhs,
-                                rhs,
-                                range,
-                            };
+                            let error =
+                                RuntimeError::invalid_binary_operands(operator, lhs, rhs, range);
                             Err(error)
                         }
                     },
@@ -233,12 +228,8 @@ where
                             Ok(value)
                         }
                         (lhs, rhs) => {
-                            let error = RuntimeError::InvalidBinaryOperands {
-                                operator,
-                                lhs,
-                                rhs,
-                                range,
-                            };
+                            let error =
+                                RuntimeError::invalid_binary_operands(operator, lhs, rhs, range);
                             Err(error)
                         }
                     },
@@ -248,12 +239,8 @@ where
                             Ok(value)
                         }
                         (lhs, rhs) => {
-                            let error = RuntimeError::InvalidBinaryOperands {
-                                operator,
-                                lhs,
-                                rhs,
-                                range,
-                            };
+                            let error =
+                                RuntimeError::invalid_binary_operands(operator, lhs, rhs, range);
                             Err(error)
                         }
                     },
@@ -278,11 +265,7 @@ where
                             Ok(value)
                         }
                         _ => {
-                            let error = RuntimeError::InvalidUnaryOperand {
-                                operator,
-                                rhs,
-                                range,
-                            };
+                            let error = RuntimeError::invalid_unary_operand(operator, rhs, range);
                             Err(error)
                         }
                     },
@@ -294,13 +277,34 @@ where
                 }
             }
 
+            ExpressionKind::Call { callee, arguments } => {
+                let callee_range = callee.range;
+                let value = self.evaluate(callee)?;
+                let Value::Callable(callee) = value else {
+                    let range = callee_range;
+                    let error = RuntimeError::not_callable(value, range);
+                    return Err(error);
+                };
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| self.evaluate(argument))
+                    .collect::<Result<Box<[_]>, _>>()?;
+                let expected = callee.arity();
+                let actual = arguments.len();
+                if expected != actual {
+                    let error = RuntimeError::arity_mismatch(expected, actual, range);
+                    return Err(error);
+                }
+                callee.call(self, arguments)
+            }
+
             ExpressionKind::Grouping { expression } => self.evaluate(expression),
 
             ExpressionKind::Variable { name } => self
-                .environment
+                .current
                 .borrow()
                 .get(name)
-                .ok_or(RuntimeError::UndefinedVariable { range }),
+                .ok_or(RuntimeError::undefined_variable(range)),
 
             ExpressionKind::Literal(literal) => {
                 let value = match literal {
@@ -326,16 +330,73 @@ pub enum RuntimeError<'a> {
     IoError(io::Error),
     InvalidBinaryOperands {
         operator: BinaryOperator,
-        lhs: Value<'a>,
-        rhs: Value<'a>,
+        lhs: Box<Value<'a>>,
+        rhs: Box<Value<'a>>,
         range: Range<usize>,
     },
     InvalidUnaryOperand {
         operator: UnaryOperator,
-        rhs: Value<'a>,
+        rhs: Box<Value<'a>>,
         range: Range<usize>,
     },
     UndefinedVariable {
         range: Range<usize>,
     },
+    NotCallable {
+        value: Box<Value<'a>>,
+        range: Range<usize>,
+    },
+    ArityMismatch {
+        expected: usize,
+        actual: usize,
+        range: Range<usize>,
+    },
+}
+
+impl<'a> RuntimeError<'a> {
+    fn io_error(error: io::Error) -> Self {
+        Self::IoError(error)
+    }
+
+    fn invalid_binary_operands(
+        operator: BinaryOperator,
+        lhs: Value<'a>,
+        rhs: Value<'a>,
+        range: Range<usize>,
+    ) -> Self {
+        let lhs = Box::new(lhs);
+        let rhs = Box::new(rhs);
+        Self::InvalidBinaryOperands {
+            operator,
+            lhs,
+            rhs,
+            range,
+        }
+    }
+
+    fn invalid_unary_operand(operator: UnaryOperator, rhs: Value<'a>, range: Range<usize>) -> Self {
+        let rhs = Box::new(rhs);
+        Self::InvalidUnaryOperand {
+            operator,
+            rhs,
+            range,
+        }
+    }
+
+    fn undefined_variable(range: Range<usize>) -> Self {
+        Self::UndefinedVariable { range }
+    }
+
+    fn not_callable(value: Value<'a>, range: Range<usize>) -> Self {
+        let value = Box::new(value);
+        Self::NotCallable { value, range }
+    }
+
+    fn arity_mismatch(expected: usize, actual: usize, range: Range<usize>) -> Self {
+        Self::ArityMismatch {
+            expected,
+            actual,
+            range,
+        }
+    }
 }

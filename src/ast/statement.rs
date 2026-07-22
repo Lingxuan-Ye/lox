@@ -1,7 +1,11 @@
 use super::expression::Expression;
+use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
 pub enum Statement<'a> {
+    FunctionDeclaration {
+        declaration: Rc<FunctionDeclaration<'a>>,
+    },
     VariableDeclaration {
         name: &'a str,
         initializer: Option<Expression<'a>>,
@@ -26,7 +30,26 @@ pub enum Statement<'a> {
     },
 }
 
+#[derive(Debug, PartialEq)]
+pub struct FunctionDeclaration<'a> {
+    pub name: &'a str,
+    pub parameters: Box<[&'a str]>,
+    pub body: Box<[Statement<'a>]>,
+}
+
 impl<'a> Statement<'a> {
+    pub fn function_declaration(name: &'a str, parameters: Vec<&'a str>, body: Vec<Self>) -> Self {
+        let parameters = parameters.into_boxed_slice();
+        let body = body.into_boxed_slice();
+        let declaration = FunctionDeclaration {
+            name,
+            parameters,
+            body,
+        };
+        let declaration = Rc::new(declaration);
+        Self::FunctionDeclaration { declaration }
+    }
+
     pub fn variable_declaration(name: &'a str, initializer: Option<Expression<'a>>) -> Self {
         Self::VariableDeclaration { name, initializer }
     }
