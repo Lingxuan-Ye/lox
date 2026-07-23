@@ -3,8 +3,9 @@ use std::range::Range;
 
 #[derive(Debug, PartialEq)]
 pub struct Expression<'a> {
-    pub kind: ExpressionKind<'a>,
+    pub id: ExpressionId,
     pub range: Range<usize>,
+    pub kind: ExpressionKind<'a>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -74,52 +75,85 @@ pub enum Literal<'a> {
     Nil,
 }
 
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct ExpressionId(usize);
+
 impl<'a> Expression<'a> {
-    pub fn logical(operator: LogicalOperator, lhs: Self, rhs: Self, range: Range<usize>) -> Self {
+    pub fn logical(
+        id: ExpressionId,
+        range: Range<usize>,
+        operator: LogicalOperator,
+        lhs: Self,
+        rhs: Self,
+    ) -> Self {
         let lhs = Box::new(lhs);
         let rhs = Box::new(rhs);
         let kind = ExpressionKind::Logical { operator, lhs, rhs };
-        Self { kind, range }
+        Self { id, range, kind }
     }
 
-    pub fn assignment(name: &'a str, value: Self, range: Range<usize>) -> Self {
+    pub fn assignment(id: ExpressionId, range: Range<usize>, name: &'a str, value: Self) -> Self {
         let value = Box::new(value);
         let kind = ExpressionKind::Assignment { name, value };
-        Self { kind, range }
+        Self { id, range, kind }
     }
 
-    pub fn binary(operator: BinaryOperator, lhs: Self, rhs: Self, range: Range<usize>) -> Self {
+    pub fn binary(
+        id: ExpressionId,
+        range: Range<usize>,
+        operator: BinaryOperator,
+        lhs: Self,
+        rhs: Self,
+    ) -> Self {
         let lhs = Box::new(lhs);
         let rhs = Box::new(rhs);
         let kind = ExpressionKind::Binary { operator, lhs, rhs };
-        Self { kind, range }
+        Self { id, range, kind }
     }
 
-    pub fn unary(operator: UnaryOperator, rhs: Self, range: Range<usize>) -> Self {
+    pub fn unary(
+        id: ExpressionId,
+        range: Range<usize>,
+        operator: UnaryOperator,
+        rhs: Self,
+    ) -> Self {
         let rhs = Box::new(rhs);
         let kind = ExpressionKind::Unary { operator, rhs };
-        Self { kind, range }
+        Self { id, range, kind }
     }
 
-    pub fn call(callee: Self, arguments: Vec<Self>, range: Range<usize>) -> Self {
+    pub fn call(id: ExpressionId, range: Range<usize>, callee: Self, arguments: Vec<Self>) -> Self {
         let callee = Box::new(callee);
         let kind = ExpressionKind::Call { callee, arguments };
-        Self { kind, range }
+        Self { id, range, kind }
     }
 
-    pub fn grouping(expression: Self, range: Range<usize>) -> Self {
+    pub fn grouping(id: ExpressionId, range: Range<usize>, expression: Self) -> Self {
         let expression = Box::new(expression);
         let kind = ExpressionKind::Grouping { expression };
-        Self { kind, range }
+        Self { id, range, kind }
     }
 
-    pub fn variable(name: &'a str, range: Range<usize>) -> Self {
+    pub fn variable(id: ExpressionId, range: Range<usize>, name: &'a str) -> Self {
         let kind = ExpressionKind::Variable { name };
-        Self { kind, range }
+        Self { id, range, kind }
     }
 
-    pub fn literal(literal: Literal<'a>, range: Range<usize>) -> Self {
+    pub fn literal(id: ExpressionId, range: Range<usize>, literal: Literal<'a>) -> Self {
         let kind = ExpressionKind::Literal(literal);
-        Self { kind, range }
+        Self { id, range, kind }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ExpressionIdGenerator {
+    next: usize,
+}
+
+impl ExpressionIdGenerator {
+    pub fn next_id(&mut self) -> ExpressionId {
+        let id = self.next;
+        self.next += 1;
+        ExpressionId(id)
     }
 }

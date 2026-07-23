@@ -1,5 +1,6 @@
 use crate::ast::expression::{
-    BinaryOperator, Expression, ExpressionKind, Literal, LogicalOperator, UnaryOperator,
+    BinaryOperator, Expression, ExpressionIdGenerator, ExpressionKind, Literal, LogicalOperator,
+    UnaryOperator,
 };
 use crate::ast::statement::Statement;
 use crate::lexer::{LexError, Lexer};
@@ -15,19 +16,17 @@ pub struct Parser<'a> {
     peeked: Option<Result<Token, ParseError>>,
     panic_mode: bool,
     function_declaration_depth: usize,
+    expression_id_generator: ExpressionIdGenerator,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
-        let lexer = Lexer::new(source);
-        let peeked = None;
-        let panic_mode = true;
-        let function_declaration_depth = 0;
         Self {
-            lexer,
-            peeked,
-            panic_mode,
-            function_declaration_depth,
+            lexer: Lexer::new(source),
+            peeked: None,
+            panic_mode: true,
+            function_declaration_depth: 0,
+            expression_id_generator: ExpressionIdGenerator::default(),
         }
     }
 
@@ -400,9 +399,10 @@ impl<'a> Parser<'a> {
         };
 
         let condition = if token.kind == TokenKind::Semicolon {
-            let literal = Literal::Boolean(true);
             let range = token.range;
-            Expression::literal(literal, range)
+            let id = self.expression_id_generator.next_id();
+            let literal = Literal::Boolean(true);
+            Expression::literal(id, range, literal)
         } else {
             self.expression()?
         };
@@ -591,10 +591,12 @@ impl<'a> Parser<'a> {
         };
 
         let value = self.assignment()?;
+
+        let id = self.expression_id_generator.next_id();
         let start = lhs.range.start;
         let end = value.range.end;
         let range = Range { start, end };
-        let expression = Expression::assignment(name, value, range);
+        let expression = Expression::assignment(id, range, name, value);
         Ok(expression)
     }
 
@@ -621,10 +623,12 @@ impl<'a> Parser<'a> {
             self.next_token();
 
             let rhs = self.and()?;
+
+            let id = self.expression_id_generator.next_id();
             let start = lhs.range.start;
             let end = rhs.range.end;
             let range = Range { start, end };
-            lhs = Expression::logical(operator, lhs, rhs, range);
+            lhs = Expression::logical(id, range, operator, lhs, rhs);
         }
 
         Ok(lhs)
@@ -653,10 +657,12 @@ impl<'a> Parser<'a> {
             self.next_token();
 
             let rhs = self.equality()?;
+
+            let id = self.expression_id_generator.next_id();
             let start = lhs.range.start;
             let end = rhs.range.end;
             let range = Range { start, end };
-            lhs = Expression::logical(operator, lhs, rhs, range);
+            lhs = Expression::logical(id, range, operator, lhs, rhs);
         }
 
         Ok(lhs)
@@ -686,10 +692,12 @@ impl<'a> Parser<'a> {
             self.next_token();
 
             let rhs = self.comparison()?;
+
+            let id = self.expression_id_generator.next_id();
             let start = lhs.range.start;
             let end = rhs.range.end;
             let range = Range { start, end };
-            lhs = Expression::binary(operator, lhs, rhs, range);
+            lhs = Expression::binary(id, range, operator, lhs, rhs);
         }
 
         Ok(lhs)
@@ -721,10 +729,12 @@ impl<'a> Parser<'a> {
             self.next_token();
 
             let rhs = self.term()?;
+
+            let id = self.expression_id_generator.next_id();
             let start = lhs.range.start;
             let end = rhs.range.end;
             let range = Range { start, end };
-            lhs = Expression::binary(operator, lhs, rhs, range);
+            lhs = Expression::binary(id, range, operator, lhs, rhs);
         }
 
         Ok(lhs)
@@ -754,10 +764,12 @@ impl<'a> Parser<'a> {
             self.next_token();
 
             let rhs = self.factor()?;
+
+            let id = self.expression_id_generator.next_id();
             let start = lhs.range.start;
             let end = rhs.range.end;
             let range = Range { start, end };
-            lhs = Expression::binary(operator, lhs, rhs, range);
+            lhs = Expression::binary(id, range, operator, lhs, rhs);
         }
 
         Ok(lhs)
@@ -787,10 +799,12 @@ impl<'a> Parser<'a> {
             self.next_token();
 
             let rhs = self.unary()?;
+
+            let id = self.expression_id_generator.next_id();
             let start = lhs.range.start;
             let end = rhs.range.end;
             let range = Range { start, end };
-            lhs = Expression::binary(operator, lhs, rhs, range);
+            lhs = Expression::binary(id, range, operator, lhs, rhs);
         }
 
         Ok(lhs)
@@ -815,9 +829,11 @@ impl<'a> Parser<'a> {
         self.next_token();
 
         let rhs = self.unary()?;
+
+        let id = self.expression_id_generator.next_id();
         let end = rhs.range.end;
         let range = Range { start, end };
-        let expression = Expression::unary(operator, rhs, range);
+        let expression = Expression::unary(id, range, operator, rhs);
         Ok(expression)
     }
 
@@ -888,9 +904,10 @@ impl<'a> Parser<'a> {
                 return Err(error);
             }
 
+            let id = self.expression_id_generator.next_id();
             let end = token.range.end;
             let range = Range { start, end };
-            expression = Expression::call(expression, arguments, range);
+            expression = Expression::call(id, range, expression, arguments);
         }
 
         Ok(expression)
@@ -908,16 +925,18 @@ impl<'a> Parser<'a> {
                     let error = ParseError::UnexpectedToken(token);
                     return Err(error);
                 }
+                let id = self.expression_id_generator.next_id();
                 let end = token.range.end;
                 let range = Range { start, end };
-                let expression = Expression::grouping(expression, range);
+                let expression = Expression::grouping(id, range, expression);
                 Ok(expression)
             }
 
             TokenKind::Identifier => {
-                let name = &self.source()[token.range];
+                let id = self.expression_id_generator.next_id();
                 let range = token.range;
-                let expression = Expression::variable(name, range);
+                let name = &self.source()[range];
+                let expression = Expression::variable(id, range, name);
                 Ok(expression)
             }
 
@@ -934,42 +953,47 @@ impl<'a> Parser<'a> {
                         Err(error)
                     }
                     Ok(string) => {
-                        let literal = Literal::String(string);
+                        let id = self.expression_id_generator.next_id();
                         let range = token.range;
-                        let expression = Expression::literal(literal, range);
+                        let literal = Literal::String(string);
+                        let expression = Expression::literal(id, range, literal);
                         Ok(expression)
                     }
                 }
             }
 
             TokenKind::Number => {
-                let number = self.source()[token.range]
+                let id = self.expression_id_generator.next_id();
+                let range = token.range;
+                let number = self.source()[range]
                     .parse()
                     .unwrap_or_else(|_| unreachable!());
                 let literal = Literal::Number(number);
-                let range = token.range;
-                let expression = Expression::literal(literal, range);
+                let expression = Expression::literal(id, range, literal);
                 Ok(expression)
             }
 
             TokenKind::Keyword(Keyword::True) => {
-                let literal = Literal::Boolean(true);
+                let id = self.expression_id_generator.next_id();
                 let range = token.range;
-                let expression = Expression::literal(literal, range);
+                let literal = Literal::Boolean(true);
+                let expression = Expression::literal(id, range, literal);
                 Ok(expression)
             }
 
             TokenKind::Keyword(Keyword::False) => {
-                let literal = Literal::Boolean(false);
+                let id = self.expression_id_generator.next_id();
                 let range = token.range;
-                let expression = Expression::literal(literal, range);
+                let literal = Literal::Boolean(false);
+                let expression = Expression::literal(id, range, literal);
                 Ok(expression)
             }
 
             TokenKind::Keyword(Keyword::Nil) => {
-                let literal = Literal::Nil;
+                let id = self.expression_id_generator.next_id();
                 let range = token.range;
-                let expression = Expression::literal(literal, range);
+                let literal = Literal::Nil;
+                let expression = Expression::literal(id, range, literal);
                 Ok(expression)
             }
 
