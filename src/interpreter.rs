@@ -5,6 +5,7 @@ use crate::ast::expression::{
 };
 use crate::ast::statement::Statement;
 use crate::parser::{ParseError, Parser};
+use crate::resolver::{Resolutions, ResolveError, Resolver};
 use std::cell::RefCell;
 use std::io;
 use std::range::Range;
@@ -16,7 +17,9 @@ mod environment;
 
 #[derive(Debug)]
 pub struct Interpreter<'a, W> {
+    global: Rc<RefCell<Environment<'a>>>,
     current: Rc<RefCell<Environment<'a>>>,
+    resolutions: Resolutions,
     output: W,
 }
 
@@ -32,8 +35,15 @@ where
             let function = Value::Callable(function);
             global.define(name, function);
         }
-        let current = global.into_shared();
-        Self { current, output }
+        let global = global.into_shared();
+        let current = Rc::clone(&global);
+        let resolutions = Resolutions::new();
+        Self {
+            global,
+            current,
+            resolutions,
+            output,
+        }
     }
 
     pub fn flush(&mut self) -> io::Result<()> {
@@ -43,9 +53,16 @@ where
     pub fn interpret(&mut self, source: &'a str) -> Result<(), InterpretError<'a>> {
         let parser = Parser::new(source);
         let statements = parser.parse().map_err(InterpretError::Parse)?;
+
+        let resolver = Resolver::new();
+        self.resolutions = resolver
+            .resolve(&statements)
+            .map_err(InterpretError::Resolve)?;
+
         for statement in &statements {
             self.execute(statement).map_err(InterpretError::Runtime)?;
         }
+
         Ok(())
     }
 
@@ -126,7 +143,10 @@ where
                 writeln!(self.output, "{value}").map_err(RuntimeError::io_error)?;
             }
 
-            Statement::Return { value } => {
+            Statement::Return {
+                keyword_range: _,
+                value,
+            } => {
                 let value = match value {
                     None => Value::Nil,
                     Some(value) => self.evaluate(value)?,
@@ -144,6 +164,7 @@ where
 
     pub fn evaluate(&mut self, expression: &Expression<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         let range = expression.range;
+
         match &expression.kind {
             ExpressionKind::Logical { operator, lhs, rhs } => {
                 let lhs = self.evaluate(lhs)?;
@@ -165,10 +186,17 @@ where
 
             ExpressionKind::Assignment { name, value } => {
                 let value = self.evaluate(value)?;
-                self.current
-                    .borrow_mut()
-                    .assign(name, value)
-                    .map_err(|_| RuntimeError::undefined_variable(range))
+                if let Some(distance) = self.resolutions.get(&expression.id).copied() {
+                    self.current
+                        .borrow_mut()
+                        .assign_at(name, value, distance)
+                        .or_else(|_| unreachable!())
+                } else {
+                    self.global
+                        .borrow_mut()
+                        .assign(name, value)
+                        .map_err(|_| RuntimeError::undefined_variable(range))
+                }
             }
 
             ExpressionKind::Binary { operator, lhs, rhs } => {
@@ -324,11 +352,19 @@ where
 
             ExpressionKind::Grouping { expression } => self.evaluate(expression),
 
-            ExpressionKind::Variable { name } => self
-                .current
-                .borrow()
-                .get(name)
-                .ok_or(RuntimeError::undefined_variable(range)),
+            ExpressionKind::Variable { name } => {
+                if let Some(distance) = self.resolutions.get(&expression.id).copied() {
+                    self.current
+                        .borrow()
+                        .get_at(name, distance)
+                        .ok_or_else(|| unreachable!())
+                } else {
+                    self.global
+                        .borrow()
+                        .get(name)
+                        .ok_or(RuntimeError::undefined_variable(range))
+                }
+            }
 
             ExpressionKind::Literal(literal) => {
                 let value = match literal {
@@ -352,6 +388,7 @@ pub enum ControlFlow<'a> {
 #[derive(Debug)]
 pub enum InterpretError<'a> {
     Parse(Vec<ParseError>),
+    Resolve(Vec<ResolveError>),
     Runtime(RuntimeError<'a>),
 }
 

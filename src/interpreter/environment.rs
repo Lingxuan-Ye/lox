@@ -43,22 +43,66 @@ impl<'a> Environment<'a> {
     ) -> Result<Value<'a>, UndefinedVariable> {
         if let Some(slot) = self.variables.get_mut(name) {
             *slot = value.clone();
-            return Ok(value);
+            Ok(value)
+        } else {
+            Err(UndefinedVariable)
         }
-        if let Some(enclosing) = self.enclosing.as_deref() {
-            return enclosing.borrow_mut().assign(name, value);
+    }
+
+    pub(super) fn assign_at(
+        &mut self,
+        name: &'a str,
+        value: Value<'a>,
+        distance: usize,
+    ) -> Result<Value<'a>, UndefinedVariable> {
+        if distance == 0 {
+            return self.assign(name, value);
         }
-        Err(UndefinedVariable)
+
+        let Some(enclosing) = &self.enclosing else {
+            return Err(UndefinedVariable);
+        };
+        let mut environment = Rc::clone(enclosing);
+
+        for _ in 1..distance {
+            let borrow = environment.borrow();
+            let Some(enclosing) = &borrow.enclosing else {
+                return Err(UndefinedVariable);
+            };
+            let enclosing = Rc::clone(enclosing);
+            drop(borrow);
+            environment = enclosing;
+        }
+
+        if let Some(slot) = environment.borrow_mut().variables.get_mut(name) {
+            *slot = value.clone();
+            Ok(value)
+        } else {
+            Err(UndefinedVariable)
+        }
     }
 
     pub(super) fn get(&self, name: &str) -> Option<Value<'a>> {
-        if let Some(value) = self.variables.get(name).cloned() {
-            return Some(value);
+        self.variables.get(name).cloned()
+    }
+
+    pub(super) fn get_at(&self, name: &str, distance: usize) -> Option<Value<'a>> {
+        if distance == 0 {
+            return self.get(name);
         }
-        if let Some(enclosing) = self.enclosing.as_deref() {
-            return enclosing.borrow().get(name);
+
+        let enclosing = self.enclosing.as_ref()?;
+        let mut environment = Rc::clone(enclosing);
+
+        for _ in 1..distance {
+            let borrow = environment.borrow();
+            let enclosing = borrow.enclosing.as_ref()?;
+            let enclosing = Rc::clone(enclosing);
+            drop(borrow);
+            environment = enclosing;
         }
-        None
+
+        environment.borrow().get(name)
     }
 }
 

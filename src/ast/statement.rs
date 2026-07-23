@@ -1,5 +1,6 @@
 use super::expression::Expression;
 use std::rc::Rc;
+use std::range::Range;
 
 #[derive(Debug, PartialEq)]
 pub enum Statement<'a> {
@@ -26,6 +27,7 @@ pub enum Statement<'a> {
         expression: Expression<'a>,
     },
     Return {
+        keyword_range: Range<usize>,
         value: Option<Expression<'a>>,
     },
     Expression {
@@ -84,8 +86,8 @@ impl<'a> Statement<'a> {
         Self::Print { expression }
     }
 
-    pub fn return_statement(value: Option<Expression<'a>>) -> Self {
-        Self::Return { value }
+    pub fn return_statement(keyword_range: Range<usize>, value: Option<Expression<'a>>) -> Self {
+        Self::Return { keyword_range, value }
     }
 
     pub fn expression(expression: Expression<'a>) -> Self {

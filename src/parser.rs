@@ -15,7 +15,6 @@ pub struct Parser<'a> {
     lexer: Lexer<'a>,
     peeked: Option<Result<Token, ParseError>>,
     panic_mode: bool,
-    function_declaration_depth: usize,
     expression_id_generator: ExpressionIdGenerator,
 }
 
@@ -25,7 +24,6 @@ impl<'a> Parser<'a> {
             lexer: Lexer::new(source),
             peeked: None,
             panic_mode: true,
-            function_declaration_depth: 0,
             expression_id_generator: ExpressionIdGenerator::default(),
         }
     }
@@ -212,35 +210,27 @@ impl<'a> Parser<'a> {
             return Err(error);
         }
 
-        self.function_declaration_depth += 1;
+        let mut body = Vec::new();
 
-        let result = 'result: {
-            let mut body = Vec::new();
-
-            loop {
-                let Some(Ok(token)) = self.peek_token() else {
-                    let Err(error) = self.next_token().require() else {
-                        unreachable!()
-                    };
-                    break 'result Err(error);
+        loop {
+            let Some(Ok(token)) = self.peek_token() else {
+                let Err(error) = self.next_token().require() else {
+                    unreachable!()
                 };
+                return Err(error);
+            };
 
-                if token.kind == TokenKind::RBrace {
-                    self.next_token();
-                    break;
-                }
-
-                let statement = self.declaration()?;
-                body.push(statement);
+            if token.kind == TokenKind::RBrace {
+                self.next_token();
+                break;
             }
 
-            let statement = Statement::function_declaration(name, parameters, body);
-            Ok(statement)
-        };
+            let statement = self.declaration()?;
+            body.push(statement);
+        }
 
-        self.function_declaration_depth -= 1;
-
-        result
+        let statement = Statement::function_declaration(name, parameters, body);
+        Ok(statement)
     }
 
     fn variable_declaration(&mut self) -> Result<Statement<'a>, ParseError> {
@@ -515,11 +505,7 @@ impl<'a> Parser<'a> {
             return Err(error);
         }
 
-        if self.function_declaration_depth == 0 {
-            let range = token.range;
-            let error = ParseError::ReturnOutsideFunction { range };
-            return Err(error);
-        }
+        let keyword_range = token.range;
 
         let Some(Ok(token)) = self.peek_token() else {
             let Err(error) = self.next_token().require() else {
@@ -530,7 +516,7 @@ impl<'a> Parser<'a> {
 
         if token.kind == TokenKind::Semicolon {
             self.next_token();
-            let statement = Statement::return_statement(None);
+            let statement = Statement::return_statement(keyword_range, None);
             return Ok(statement);
         }
 
@@ -542,7 +528,7 @@ impl<'a> Parser<'a> {
             return Err(error);
         }
 
-        let statement = Statement::return_statement(Some(value));
+        let statement = Statement::return_statement(keyword_range, Some(value));
         Ok(statement)
     }
 
@@ -1020,7 +1006,6 @@ pub enum ParseError {
     LexError(LexError),
     UnexpectedEndOfInput,
     UnexpectedToken(Token),
-    ReturnOutsideFunction { range: Range<usize> },
     InvalidAssignmentTarget { range: Range<usize> },
     TooManyArguments { range: Range<usize> },
     InvalidEscapeSequence { range: Range<usize> },

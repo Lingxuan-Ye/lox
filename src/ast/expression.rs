@@ -75,7 +75,7 @@ pub enum Literal<'a> {
     Nil,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct ExpressionId(usize);
 
 impl<'a> Expression<'a> {
