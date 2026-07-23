@@ -10,14 +10,14 @@ fn main() {
         process::exit(64);
     };
     let source = fs::read_to_string(path).unwrap_or_else(|error| {
-        eprintln!("error: {error}");
+        eprintln!("{error}");
         process::exit(65);
     });
     let output = io::stdout().lock();
     let output = io::BufWriter::new(output);
     let mut interpreter = Interpreter::new(output);
     if let Err(error) = interpreter.interpret(&source) {
-        eprintln!("error: {error:?}");
+        eprintln!("{error}");
         process::exit(70);
     }
 }

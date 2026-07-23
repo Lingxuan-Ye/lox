@@ -138,8 +138,6 @@ impl<'a> Parser<'a> {
             return Err(error);
         }
 
-        let start = token.range.start;
-
         let token = self.next_token().require()?;
         if token.kind != TokenKind::Identifier {
             let error = ParseError::UnexpectedToken(token);
@@ -164,6 +162,7 @@ impl<'a> Parser<'a> {
         };
 
         if token.kind != TokenKind::RParen {
+            let parameter_start = token.range.start;
             loop {
                 let token = self.next_token().require()?;
                 if token.kind != TokenKind::Identifier {
@@ -173,6 +172,7 @@ impl<'a> Parser<'a> {
 
                 if parameters.len() == MAX_ARITY {
                     self.panic_mode = false;
+                    let start = parameter_start;
                     let end = token.range.end;
                     let range = Range { start, end };
                     let error = ParseError::TooManyArguments { range };
@@ -856,11 +856,13 @@ impl<'a> Parser<'a> {
             };
 
             if token.kind != TokenKind::RParen {
+                let argument_start = token.range.start;
                 loop {
                     let expression = self.expression()?;
 
                     if arguments.len() == MAX_ARITY {
                         self.panic_mode = false;
+                        let start = argument_start;
                         let end = expression.range.end;
                         let range = Range { start, end };
                         let error = ParseError::TooManyArguments { range };

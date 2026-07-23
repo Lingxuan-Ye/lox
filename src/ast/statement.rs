@@ -1,6 +1,6 @@
 use super::expression::Expression;
-use std::rc::Rc;
 use std::range::Range;
+use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
 pub enum Statement<'a> {
@@ -87,7 +87,10 @@ impl<'a> Statement<'a> {
     }
 
     pub fn return_statement(keyword_range: Range<usize>, value: Option<Expression<'a>>) -> Self {
-        Self::Return { keyword_range, value }
+        Self::Return {
+            keyword_range,
+            value,
+        }
     }
 
     pub fn expression(expression: Expression<'a>) -> Self {

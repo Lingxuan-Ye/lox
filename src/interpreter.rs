@@ -4,9 +4,12 @@ use crate::ast::expression::{
     BinaryOperator, Expression, ExpressionKind, Literal, LogicalOperator, UnaryOperator,
 };
 use crate::ast::statement::Statement;
+use crate::lexer::LexError;
 use crate::parser::{ParseError, Parser};
 use crate::resolver::{Resolutions, ResolveError, Resolver};
 use std::cell::RefCell;
+use std::error::Error;
+use std::fmt;
 use std::io;
 use std::range::Range;
 use std::rc::Rc;
@@ -52,15 +55,18 @@ where
 
     pub fn interpret(&mut self, source: &'a str) -> Result<(), InterpretError<'a>> {
         let parser = Parser::new(source);
-        let statements = parser.parse().map_err(InterpretError::Parse)?;
+        let statements = parser
+            .parse()
+            .map_err(|errors| InterpretError::parse(errors, source))?;
 
         let resolver = Resolver::new();
         self.resolutions = resolver
             .resolve(&statements)
-            .map_err(InterpretError::Resolve)?;
+            .map_err(|errors| InterpretError::resolve(errors, source))?;
 
         for statement in &statements {
-            self.execute(statement).map_err(InterpretError::Runtime)?;
+            self.execute(statement)
+                .map_err(|error| InterpretError::runtime(error, source))?;
         }
 
         Ok(())
@@ -337,16 +343,16 @@ where
                     let error = RuntimeError::not_callable(value, range);
                     return Err(error);
                 };
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| self.evaluate(argument))
-                    .collect::<Result<Box<[_]>, _>>()?;
                 let expected = callee.arity();
                 let actual = arguments.len();
                 if expected != actual {
                     let error = RuntimeError::arity_mismatch(expected, actual, range);
                     return Err(error);
                 }
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| self.evaluate(argument))
+                    .collect::<Result<Box<[_]>, _>>()?;
                 callee.call(self, arguments)
             }
 
@@ -386,11 +392,163 @@ pub enum ControlFlow<'a> {
 }
 
 #[derive(Debug)]
-pub enum InterpretError<'a> {
+pub struct InterpretError<'a> {
+    pub kind: InterpretErrorKind<'a>,
+    pub source: &'a str,
+}
+
+#[derive(Debug)]
+pub enum InterpretErrorKind<'a> {
     Parse(Vec<ParseError>),
     Resolve(Vec<ResolveError>),
     Runtime(RuntimeError<'a>),
 }
+
+impl<'a> InterpretError<'a> {
+    fn parse(errors: Vec<ParseError>, source: &'a str) -> Self {
+        let kind = InterpretErrorKind::Parse(errors);
+        Self { kind, source }
+    }
+
+    fn resolve(errors: Vec<ResolveError>, source: &'a str) -> Self {
+        let kind = InterpretErrorKind::Resolve(errors);
+        Self { kind, source }
+    }
+
+    fn runtime(error: RuntimeError<'a>, source: &'a str) -> Self {
+        let kind = InterpretErrorKind::Runtime(error);
+        Self { kind, source }
+    }
+}
+
+impl fmt::Display for InterpretError<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            InterpretErrorKind::Parse(errors) => {
+                for error in errors {
+                    if let ParseError::LexError(error) = error {
+                        f.write_str("lex error: ")?;
+                        match error {
+                            LexError::UnexpectedCharacter { char, range } => {
+                                write!(f, "unexpected character '{char}' at {range:?}")?;
+                            }
+                            LexError::UnterminatedString => {
+                                f.write_str("unterminated string")?;
+                            }
+                        }
+                    } else {
+                        f.write_str("parse error: ")?;
+                        match error {
+                            ParseError::UnexpectedEndOfInput => {
+                                f.write_str("unexpected end of input")?;
+                            }
+                            ParseError::UnexpectedToken(token) => {
+                                let range = token.range;
+                                let source = &self.source[range];
+                                write!(f, "unexpected token `{source}` at {range:?}")?;
+                            }
+                            ParseError::InvalidAssignmentTarget { range } => {
+                                let source = &self.source[*range];
+                                write!(f, "invalid assignment target `{source}` at {range:?}")?;
+                            }
+                            ParseError::TooManyArguments { range } => {
+                                let source = &self.source[*range];
+                                write!(
+                                    f,
+                                    "too many arguments at {range:?} (arguments: `{source}, ..`"
+                                )?;
+                            }
+                            ParseError::InvalidEscapeSequence { range } => {
+                                let source = &self.source[*range];
+                                write!(f, "invalid escape sequence \"{source}\" at {range:?}")?;
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    writeln!(f)?;
+                }
+            }
+
+            InterpretErrorKind::Resolve(errors) => {
+                for error in errors {
+                    f.write_str("resolve error: ")?;
+                    match error {
+                        ResolveError::ReadInOwnInitializer { range } => {
+                            let source = &self.source[*range];
+                            write!(
+                                f,
+                                "read local variable `{source}` in its own initializer at {range:?}"
+                            )?;
+                        }
+                        ResolveError::ReturnOutsideFunction { range } => {
+                            write!(f, "return statement at {range:?} outside function")?;
+                        }
+                    }
+                    writeln!(f)?;
+                }
+            }
+
+            InterpretErrorKind::Runtime(error) => {
+                f.write_str("runtime error: ")?;
+                match error {
+                    RuntimeError::IoError(error) => {
+                        write!(f, "{error}")?;
+                    }
+                    RuntimeError::InvalidBinaryOperands {
+                        operator,
+                        lhs,
+                        rhs,
+                        range,
+                    } => {
+                        let source = &self.source[*range];
+                        write!(
+                            f,
+                            "invalid binary operands `{lhs}` and `{rhs}` for operator `{operator:?}` at {range:?} (evaluated from: \"{source}\")"
+                        )?;
+                    }
+                    RuntimeError::InvalidUnaryOperand {
+                        operator,
+                        rhs,
+                        range,
+                    } => {
+                        let source = &self.source[*range];
+                        write!(
+                            f,
+                            "invalid unary operand `{rhs}` for operator `{operator:?}` at {range:?} (evaluated from: \"{source}\")"
+                        )?;
+                    }
+                    RuntimeError::UndefinedVariable { range } => {
+                        let source = &self.source[*range];
+                        write!(f, "undefined variable `{source}` at {range:?}")?;
+                    }
+                    RuntimeError::NotCallable { value, range } => {
+                        let source = &self.source[*range];
+                        write!(
+                            f,
+                            "value `{value}` at {range:?} is not callable (evaluated from: \"{source}\")"
+                        )?;
+                    }
+                    RuntimeError::ArityMismatch {
+                        expected,
+                        actual,
+                        range,
+                    } => {
+                        let source = &self.source[*range];
+                        write!(
+                            f,
+                            "expect {expected} argument(s), got {actual} at {range:?} (evaluated from: \"{source}\")"
+                        )?;
+                    }
+                }
+                writeln!(f)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Error for InterpretError<'_> {}
 
 #[derive(Debug)]
 pub enum RuntimeError<'a> {
