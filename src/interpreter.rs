@@ -78,7 +78,7 @@ where
     ) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
         match statement {
             Statement::FunctionDeclaration { declaration } => {
-                let name = declaration.name;
+                let name = declaration.name.text;
                 let declaration = Rc::clone(declaration);
                 let closure = Rc::clone(&self.current);
                 let function = UserFunction::new(declaration, closure);
@@ -88,6 +88,7 @@ where
             }
 
             Statement::VariableDeclaration { name, initializer } => {
+                let name = name.text;
                 if let Some(initializer) = initializer {
                     let value = self.evaluate(initializer)?;
                     self.current.borrow_mut().define(name, value);
@@ -473,6 +474,9 @@ impl fmt::Display for InterpretError<'_> {
                 for error in errors {
                     f.write_str("resolve error: ")?;
                     match error {
+                        ResolveError::ReturnOutsideFunction { range } => {
+                            write!(f, "return statement at {range:?} outside function")?;
+                        }
                         ResolveError::ReadInOwnInitializer { range } => {
                             let source = &self.source[*range];
                             write!(
@@ -480,8 +484,12 @@ impl fmt::Display for InterpretError<'_> {
                                 "read local variable `{source}` in its own initializer at {range:?}"
                             )?;
                         }
-                        ResolveError::ReturnOutsideFunction { range } => {
-                            write!(f, "return statement at {range:?} outside function")?;
+                        ResolveError::VariableAlreadyDeclared { range } => {
+                            let source = &self.source[*range];
+                            write!(
+                                f,
+                                "variable `{source}` at {range:?} is already declared in this scope"
+                            )?;
                         }
                     }
                     writeln!(f)?;

@@ -83,7 +83,7 @@ impl<'a> UserFunction<'a> {
     }
 
     pub fn name(&self) -> &str {
-        self.declaration.name
+        self.declaration.name.text
     }
 
     pub fn arity(&self) -> usize {
@@ -103,7 +103,8 @@ impl<'a> Call<'a> for UserFunction<'a> {
         let captured = Rc::clone(&self.captured);
         let mut current = Environment::with_enclosing(captured);
         for (parameter, argument) in self.declaration.parameters.iter().zip(arguments) {
-            current.define(parameter, argument);
+            let name = parameter.text;
+            current.define(name, argument);
         }
         let previous = Rc::clone(&interpreter.current);
         interpreter.current = current.into_shared();

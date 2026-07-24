@@ -8,7 +8,7 @@ pub enum Statement<'a> {
         declaration: Rc<FunctionDeclaration<'a>>,
     },
     VariableDeclaration {
-        name: &'a str,
+        name: Identifier<'a>,
         initializer: Option<Expression<'a>>,
     },
     Block {
@@ -37,13 +37,23 @@ pub enum Statement<'a> {
 
 #[derive(Debug, PartialEq)]
 pub struct FunctionDeclaration<'a> {
-    pub name: &'a str,
-    pub parameters: Box<[&'a str]>,
+    pub name: Identifier<'a>,
+    pub parameters: Box<[Identifier<'a>]>,
     pub body: Box<[Statement<'a>]>,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Identifier<'a> {
+    pub range: Range<usize>,
+    pub text: &'a str,
+}
+
 impl<'a> Statement<'a> {
-    pub fn function_declaration(name: &'a str, parameters: Vec<&'a str>, body: Vec<Self>) -> Self {
+    pub fn function_declaration(
+        name: Identifier<'a>,
+        parameters: Vec<Identifier<'a>>,
+        body: Vec<Self>,
+    ) -> Self {
         let parameters = parameters.into_boxed_slice();
         let body = body.into_boxed_slice();
         let declaration = FunctionDeclaration {
@@ -55,7 +65,7 @@ impl<'a> Statement<'a> {
         Self::FunctionDeclaration { declaration }
     }
 
-    pub fn variable_declaration(name: &'a str, initializer: Option<Expression<'a>>) -> Self {
+    pub fn variable_declaration(name: Identifier<'a>, initializer: Option<Expression<'a>>) -> Self {
         Self::VariableDeclaration { name, initializer }
     }
 

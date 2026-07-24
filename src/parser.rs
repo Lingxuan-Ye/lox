@@ -2,7 +2,7 @@ use crate::ast::expression::{
     BinaryOperator, Expression, ExpressionIdGenerator, ExpressionKind, Literal, LogicalOperator,
     UnaryOperator,
 };
-use crate::ast::statement::Statement;
+use crate::ast::statement::{Identifier, Statement};
 use crate::lexer::{LexError, Lexer};
 use crate::string::LoxString;
 use crate::token::{Keyword, Token, TokenKind};
@@ -144,7 +144,9 @@ impl<'a> Parser<'a> {
             return Err(error);
         }
 
-        let name = &self.source()[token.range];
+        let range = token.range;
+        let text = &self.source()[range];
+        let name = Identifier { range, text };
 
         let token = self.next_token().require()?;
         if token.kind != TokenKind::LParen {
@@ -179,7 +181,9 @@ impl<'a> Parser<'a> {
                     return Err(error);
                 }
 
-                let parameter = &self.source()[token.range];
+                let range = token.range;
+                let text = &self.source()[range];
+                let parameter = Identifier { range, text };
 
                 parameters.push(parameter);
 
@@ -246,7 +250,9 @@ impl<'a> Parser<'a> {
             return Err(error);
         }
 
-        let name = &self.source()[token.range];
+        let range = token.range;
+        let text = &self.source()[range];
+        let name = Identifier { range, text };
 
         let Some(Ok(token)) = self.peek_token() else {
             let Err(error) = self.next_token().require() else {

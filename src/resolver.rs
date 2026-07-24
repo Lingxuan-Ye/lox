@@ -37,15 +37,18 @@ impl<'a> Resolver<'a> {
             Statement::FunctionDeclaration { declaration } => {
                 self.function_declaration_depth += 1;
 
-                let name = declaration.name;
-                self.declare(name);
+                let range = declaration.name.range;
+                let name = declaration.name.text;
+                self.declare(name, range);
                 self.define(name);
 
                 let scope = HashMap::new();
                 self.scopes.push(scope);
 
                 for parameter in &declaration.parameters {
-                    self.declare(parameter);
+                    let range = parameter.range;
+                    let parameter = parameter.text;
+                    self.declare(parameter, range);
                     self.define(parameter);
                 }
 
@@ -59,7 +62,9 @@ impl<'a> Resolver<'a> {
             }
 
             Statement::VariableDeclaration { name, initializer } => {
-                self.declare(name);
+                let range = name.range;
+                let name = name.text;
+                self.declare(name, range);
                 if let Some(initializer) = initializer {
                     self.resolve_expression(initializer);
                 }
@@ -207,8 +212,21 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn declare(&mut self, name: &'a str) {
+    fn declare(&mut self, name: &'a str, range: Range<usize>) {
         if let Some(scope) = self.scopes.last_mut() {
+            if scope.contains_key(name) {
+                let error = ResolveError::VariableAlreadyDeclared { range };
+                match &mut self.result {
+                    Err(errors) => {
+                        errors.push(error);
+                    }
+                    Ok(_) => {
+                        let errors = vec![error];
+                        self.result = Err(errors);
+                    }
+                }
+                return;
+            }
             scope.insert(name, false);
         }
     }
@@ -228,6 +246,7 @@ impl Default for Resolver<'_> {
 
 #[derive(Debug, PartialEq)]
 pub enum ResolveError {
-    ReadInOwnInitializer { range: Range<usize> },
     ReturnOutsideFunction { range: Range<usize> },
+    ReadInOwnInitializer { range: Range<usize> },
+    VariableAlreadyDeclared { range: Range<usize> },
 }
