@@ -108,7 +108,7 @@ impl Iterator for Lexer<'_> {
                     if !unicode_ident::is_xid_start(char) {
                         let end = self.cursor;
                         let range = Range { start, end };
-                        let error = LexError::UnexpectedCharacter { char, range };
+                        let error = LexError::UnexpectedCharacter { range, char };
                         return Some(Err(error));
                     }
                     for char in chars {
@@ -168,13 +168,13 @@ impl Iterator for Lexer<'_> {
                     let char = byte as char;
                     let end = self.cursor;
                     let range = Range { start, end };
-                    let error = LexError::UnexpectedCharacter { char, range };
+                    let error = LexError::UnexpectedCharacter { range, char };
                     return Some(Err(error));
                 }
             };
             let end = self.cursor;
             let range = Range { start, end };
-            let token = Token { kind, range };
+            let token = Token { range, kind };
             return Some(Ok(token));
         }
     }
@@ -182,7 +182,7 @@ impl Iterator for Lexer<'_> {
 
 #[derive(Debug, PartialEq)]
 pub enum LexError {
-    UnexpectedCharacter { char: char, range: Range<usize> },
+    UnexpectedCharacter { range: Range<usize>, char: char },
     UnterminatedString,
 }
 

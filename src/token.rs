@@ -2,8 +2,8 @@ use std::range::Range;
 
 #[derive(Debug, PartialEq)]
 pub struct Token {
-    pub kind: TokenKind,
     pub range: Range<usize>,
+    pub kind: TokenKind,
 }
 
 #[derive(Debug, PartialEq)]

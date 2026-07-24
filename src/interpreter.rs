@@ -429,7 +429,7 @@ impl fmt::Display for InterpretError<'_> {
                     if let ParseError::LexError(error) = error {
                         f.write_str("lex error: ")?;
                         match error {
-                            LexError::UnexpectedCharacter { char, range } => {
+                            LexError::UnexpectedCharacter { range, char } => {
                                 write!(f, "unexpected character '{char}' at {range:?}")?;
                             }
                             LexError::UnterminatedString => {
